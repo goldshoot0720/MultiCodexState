@@ -342,8 +342,9 @@ src/accounts.js    auth.json parsing, archive read/write, JWT decode
 src/usage.js       usage endpoint, token refresh, response normalisation
 src/commands.js    login / logout / switch implementations
 src/version.js     update checking (local HEAD vs GitHub SHA, TTL cache)
-src/cli.js         chalk rendering + command dispatch
+src/cli.js         chalk rendering + command dispatch, --json output
 test/run.js        local test harness (mock API + isolated CODEX_HOME)
+gui/               Avalonia desktop front-end (see Desktop GUI)
 install.ps1        PowerShell installer (irm ... | iex)
 install.cmd        CMD installer (curl -o ... && ... && del)
 install.sh         macOS / Linux installer (curl ... | bash)
@@ -382,7 +383,7 @@ restored it in a `finally` block; a killed run left the real CLI pointing at a
 dead localhost port. Section 9 of the suite guards against that regression.)
 
 ```bash
-npm test              # run all 113 checks
+npm test              # run all 155 checks
 node test/run.js --keep   # keep the sandbox for manual poking
 ```
 
@@ -392,8 +393,60 @@ malformed input), window labelling, payload normalisation (including the free
 plan's `null` secondary window), the live fetch path, token rotation
 persistence, archive read/write, logout (archives the live session under its
 email, removes `auth.json` and `auth.json.lock`, keeps existing archives,
-`-f` force-overwrite), switch, unknown-account errors, source-file integrity,
-and version helpers exercised in isolated temporary repos.
+`-f` force-overwrite), switch, unknown-account errors, the `--json` contracts
+below, source-file integrity, and version helpers exercised in isolated
+temporary repos.
+
+## Desktop GUI (Avalonia)
+
+A cross-platform desktop front-end lives in `gui/`. It shells out to the CLI
+(`list --json` / `usage --json`) rather than re-implementing token handling, so
+there is exactly one source of truth for auth and quota logic.
+
+### Run it
+
+```cmd
+gui\run.cmd
+```
+
+The first run builds the project (requires the **.NET SDK 8.0+**) and then
+launches the window. To build manually instead:
+
+```bash
+cd gui/MultiCodexStateGui
+dotnet build -c Release
+```
+
+### What it does
+
+- Lists every archived account with its plan, token status and live quota.
+- Draws one bar per rate-limit window. The card is deliberately **plan-agnostic**:
+  plus/pro accounts show a `5h` and a `weekly` bar, a free account shows the
+  single `monthly` bar it actually reports, and a plan that reports no windows
+  at all renders at 0% with a note rather than looking broken. Nothing assumes
+  a fixed window count.
+- `Switch` makes an archived account live, `Login` / `Logout` open a real
+  terminal window so the browser OAuth flow and any errors stay visible, and
+  `Update` / `Check updates` drive the same self-update path as the CLI.
+
+### Machine-readable output
+
+The GUI consumes three `--json` modes. They are stable enough to script
+against, and with `--json` stdout carries the document **and nothing else** —
+no colour, no banners, and the background update notice is suppressed so it
+can never corrupt the payload.
+
+| Command | Output |
+| --- | --- |
+| `list --json` | array of `{name, email, displayName, plan, status, expiresAt, isActive, error}`; `expiresAt` is epoch ms. Stays offline — it never fetches usage. |
+| `usage --json` | array of `{name, email, planType, ok, error, limitReached, noCapReported, windows[], credits, resetCredits, modelUsage}` |
+| `where --json` | `{authJson, accountsDir, codexBinary}` |
+
+`windows[]` entries are `{key, label, windowSeconds, usedPercent,
+remainingPercent, resetAt}`, where `label` is derived from the window duration
+(`5h` / `weekly` / `monthly`) and `resetAt` is epoch ms. A failed fetch is
+reported as `ok: false` plus an `error` string on that row rather than a
+missing row, so callers can show the failure next to the account.
 
 ## Security
 

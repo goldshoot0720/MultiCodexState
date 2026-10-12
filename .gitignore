@@ -3,6 +3,11 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# .NET / Avalonia GUI build output
+gui/**/bin/
+gui/**/obj/
+gui/**/*.user
+
 # Never commit credentials
 *_auth.json
 auth.json

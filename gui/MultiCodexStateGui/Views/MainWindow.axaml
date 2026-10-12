@@ -1,0 +1,189 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MultiCodexStateGui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="640"
+        x:Class="MultiCodexStateGui.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="MultiCodexState"
+        Width="920" Height="640"
+        MinWidth="680" MinHeight="440"
+        WindowStartupLocation="CenterScreen">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- ── Toolbar ──────────────────────────────────────────────── -->
+        <Border Grid.Row="0" Padding="14,10"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="MultiCodexState"
+                           FontSize="16" FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="4,0,20,0" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Content="Login" Command="{Binding LoginCommand}" />
+                    <Button Content="Logout" Command="{Binding LogoutCommand}" />
+                    <Button Content="Refresh" Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="Check updates" Command="{Binding CheckUpdateCommand}" />
+                    <Button Content="Update" Command="{Binding UpdateCommand}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Body ─────────────────────────────────────────────────── -->
+        <Panel Grid.Row="1">
+
+            <ScrollViewer Padding="14">
+                <ItemsControl ItemsSource="{Binding Accounts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:AccountViewModel">
+                            <Border Margin="0,0,0,10" Padding="14" CornerRadius="8"
+                                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                                    BorderThickness="1">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+
+                                    <!-- active marker -->
+                                    <TextBlock Grid.Column="0"
+                                               Text="&#x25B6;" FontSize="13" Foreground="#22C55E"
+                                               IsVisible="{Binding IsActive}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                                    <!-- ── middle column: identity + usage ── -->
+                                    <StackPanel Grid.Column="1" Spacing="5">
+
+                                        <!-- name + plan + email -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold" FontSize="14"
+                                                       VerticalAlignment="Center" />
+                                            <Border IsVisible="{Binding HasPlan}"
+                                                    CornerRadius="3" Padding="5,1"
+                                                    VerticalAlignment="Center"
+                                                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                                                <TextBlock Text="{Binding Plan}" FontSize="10"
+                                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Email}" FontSize="12"
+                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <!-- rate-limit windows: however many the plan reports
+                                             (5h + weekly on paid, a single monthly on free) -->
+                                        <ItemsControl ItemsSource="{Binding Windows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="vm:WindowViewModel">
+                                                    <StackPanel Spacing="2" Margin="0,0,0,4">
+                                                        <Grid ColumnDefinitions="56,200,Auto,*">
+                                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11"
+                                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                                       VerticalAlignment="Center" />
+                                                            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100"
+                                                                         Value="{Binding PercentValue}"
+                                                                         Height="10" VerticalAlignment="Center"
+                                                                         Foreground="{Binding BarColor}" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding PercentText}"
+                                                                       FontSize="12" Width="56"
+                                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                                            <TextBlock Grid.Column="3" Text="{Binding RemainingText}"
+                                                                       IsVisible="{Binding HasRemaining}"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding ResetText}"
+                                                                   IsVisible="{Binding HasReset}"
+                                                                   FontSize="11" Margin="56,0,0,0"
+                                                                   Foreground="{Binding ResetColor}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- credits / reset credits -->
+                                        <TextBlock Text="{Binding CreditsText}" FontSize="11"
+                                                   IsVisible="{Binding HasCredits}"
+                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+                                        <!-- rate limit hit -->
+                                        <TextBlock Text="rate limit reached" FontSize="11"
+                                                   IsVisible="{Binding HasLimitReached}"
+                                                   Foreground="#EF4444" />
+
+                                        <!-- no-cap note -->
+                                        <TextBlock Text="{Binding UsageNote}" FontSize="11"
+                                                   IsVisible="{Binding HasUsageNote}"
+                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+                                        <!-- error -->
+                                        <TextBlock Text="{Binding Error}" FontSize="11"
+                                                   IsVisible="{Binding HasError}"
+                                                   Foreground="#EF4444" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <!-- ── right column: status + switch ── -->
+                                    <StackPanel Grid.Column="2" Spacing="10"
+                                                VerticalAlignment="Center" Margin="14,0,0,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="5"
+                                                    HorizontalAlignment="Right">
+                                            <TextBlock Text="&#x25CF;" FontSize="10"
+                                                       Foreground="{Binding StatusColor}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Status}" FontSize="12"
+                                                       Foreground="{Binding StatusColor}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding ExpiryText}" FontSize="11"
+                                                       IsVisible="{Binding HasExpiry}"
+                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Button Content="Switch"
+                                                Command="{Binding $parent[Window].DataContext.SwitchCommand}"
+                                                CommandParameter="{Binding}"
+                                                IsVisible="{Binding !IsActive}"
+                                                HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Empty state -->
+            <StackPanel IsVisible="{Binding IsEmpty}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="10" Margin="24">
+                <TextBlock Text="No accounts archived yet"
+                           FontSize="16" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="Click Login to run the Codex browser flow, then snapshot it."
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           HorizontalAlignment="Center" TextWrapping="Wrap"
+                           TextAlignment="Center" MaxWidth="360" />
+                <Button Content="Login" Command="{Binding LoginCommand}"
+                        HorizontalAlignment="Center" Margin="0,6,0,0" />
+            </StackPanel>
+        </Panel>
+
+        <!-- ── Status bar ───────────────────────────────────────────── -->
+        <Border Grid.Row="2" Padding="14,8"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0">
+            <TextBlock Text="{Binding StatusText}" FontSize="12"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </Border>
+    </Grid>
+</Window>

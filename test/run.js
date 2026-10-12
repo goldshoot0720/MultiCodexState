@@ -538,6 +538,152 @@ eq('shortSha handles null', version.shortSha(null), 'unknown');
 eq('REPO points at MultiCodexState', version.REPO, 'goldshoot0720/MultiCodexState');
 
 /* ------------------------------------------------------------------ */
+/* 11. --json output (the desktop GUI's contract)                      */
+/* ------------------------------------------------------------------ */
+
+section('11. --json output');
+
+/**
+ * Run the real CLI in a child process, exactly the way the GUI does, and
+ * capture stdout. Going through the entry point (rather than importing
+ * runCli) is deliberate: it is the only way to catch a stray banner or
+ * update notice corrupting the document.
+ */
+function runCliJson(args) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'multicodexstate.js'), ...args], {
+      cwd: ROOT,
+      env: { ...process.env, CODEX_HOME: codexHome, CODEX_NO_UPDATE_CHECK: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (c) => (out += c));
+    child.stderr.on('data', (c) => (err += c));
+    child.on('error', () => resolve({ code: -1, out: '', err: 'spawn failed' }));
+    child.on('close', (code) => resolve({ code, out, err }));
+  });
+}
+
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+mock.mode = 'ok';
+mock.calls = { usage: 0, token: 0 };
+
+const listJsonRes = await runCliJson(['list', '--json']);
+eq('list --json exits 0', listJsonRes.code, 0);
+check('list --json emits no ANSI escapes', !/\u001b\[/.test(listJsonRes.out), JSON.stringify(listJsonRes.out.slice(0, 120)));
+check(
+  'list --json stdout is the bare document',
+  listJsonRes.out.trim().startsWith('[') && listJsonRes.out.trim().endsWith(']'),
+  JSON.stringify(listJsonRes.out.slice(0, 120))
+);
+eq('list --json stays offline', mock.calls.usage, 0);
+
+const listJson = parseJson(listJsonRes.out) || [];
+check('list --json parses as a JSON array', Array.isArray(parseJson(listJsonRes.out)), listJsonRes.out.slice(0, 200));
+eq('list --json has one row per archive', listJson.length, 2);
+
+const jsonAlpha = listJson.find((a) => a.name === 'alpha');
+check('list --json includes the alpha row', Boolean(jsonAlpha));
+eq('list --json carries the email', jsonAlpha?.email, 'alpha@example.com');
+eq('list --json carries the plan', jsonAlpha?.plan, 'plus');
+eq('list --json carries the display name', jsonAlpha?.displayName, 'Alpha Person');
+eq('list --json marks the switched account active', jsonAlpha?.isActive, true);
+check(
+  'list --json gives expiresAt as epoch ms',
+  typeof jsonAlpha?.expiresAt === 'number' && jsonAlpha.expiresAt > 1e12,
+  String(jsonAlpha?.expiresAt)
+);
+check('list --json leaves error null on a healthy archive', jsonAlpha?.error === null);
+
+const jsonBeta = listJson.find((a) => a.name === 'beta');
+eq('list --json marks the expired archive', jsonBeta?.status, 'expired');
+eq('list --json marks the inactive archive', jsonBeta?.isActive, false);
+
+const usageJsonRes = await runCliJson(['usage', '--json']);
+eq('usage --json exits 0', usageJsonRes.code, 0);
+check('usage --json emits no ANSI escapes', !/\u001b\[/.test(usageJsonRes.out), JSON.stringify(usageJsonRes.out.slice(0, 120)));
+eq('usage --json does hit the network', mock.calls.usage > 0, true);
+
+const usageJson = parseJson(usageJsonRes.out) || [];
+check('usage --json parses as a JSON array', Array.isArray(parseJson(usageJsonRes.out)), usageJsonRes.out.slice(0, 200));
+eq('usage --json has one row per account', usageJson.length, 2);
+
+const usageAlpha = usageJson.find((u) => u.name === 'alpha');
+check('usage --json reports ok for alpha', usageAlpha?.ok === true, JSON.stringify(usageAlpha).slice(0, 200));
+eq('usage --json carries the plan', usageAlpha?.planType, 'plus');
+eq('usage --json keeps both windows', usageAlpha?.windows?.length, 2);
+eq('usage --json labels the 5h window', usageAlpha?.windows?.[0]?.label, '5h');
+eq('usage --json labels the weekly window', usageAlpha?.windows?.[1]?.label, 'weekly');
+eq('usage --json carries usedPercent', usageAlpha?.windows?.[0]?.usedPercent, 42.5);
+eq('usage --json derives remainingPercent', usageAlpha?.windows?.[0]?.remainingPercent, 57.5);
+check(
+  'usage --json gives resetAt as epoch ms',
+  usageAlpha?.windows?.[0]?.resetAt > 1e12,
+  String(usageAlpha?.windows?.[0]?.resetAt)
+);
+eq('usage --json carries reset credits', usageAlpha?.resetCredits, 1);
+check('usage --json exposes a credits object', typeof usageAlpha?.credits === 'object');
+
+// Paid plan (plus/pro): the 5h + 7d pair, asserted above as two windows.
+// Free plan: a single 30-day window and a null secondary_window. The GUI
+// must render both without a fixed column count, so pin the free shape too.
+mock.usagePayload = {
+  plan_type: 'free',
+  rate_limit: {
+    allowed: true,
+    limit_reached: false,
+    primary_window: {
+      used_percent: 100,
+      limit_window_seconds: 2_592_000,
+      reset_at: Math.floor(Date.now() / 1000) + 86_400,
+    },
+    secondary_window: null,
+  },
+  credits: { has_credits: false, unlimited: false, balance: null },
+};
+
+const freeJsonRes = await runCliJson(['usage', '--json']);
+const freeRow = (parseJson(freeJsonRes.out) || []).find((u) => u.name === 'alpha');
+eq('usage --json handles the free plan', freeRow?.ok, true);
+eq('the free plan reports exactly one window', freeRow?.windows?.length, 1);
+eq('the free window is labelled monthly', freeRow?.windows?.[0]?.label, 'monthly');
+eq('the free plan surfaces its planType', freeRow?.planType, 'free');
+eq('the free window keeps its 100% reading', freeRow?.windows?.[0]?.usedPercent, 100);
+
+// A plan that reports no windows at all is NOT the same as a genuine 0%.
+mock.usagePayload = {
+  plan_type: 'free',
+  rate_limit: { allowed: true, limit_reached: false, primary_window: null, secondary_window: null },
+};
+
+const noCapRes = await runCliJson(['usage', '--json']);
+const noCapRow = (parseJson(noCapRes.out) || []).find((u) => u.name === 'alpha');
+eq('a windowless payload reports noCapReported', noCapRow?.noCapReported, true);
+eq('a windowless payload carries no windows', noCapRow?.windows?.length, 0);
+
+// Restore the shared payload so nothing downstream inherits the free plan.
+mock.usagePayload = defaultUsagePayload();
+
+const whereJsonRes = await runCliJson(['where', '--json']);
+eq('where --json exits 0', whereJsonRes.code, 0);
+const whereJson = parseJson(whereJsonRes.out);
+check('where --json parses as an object', Boolean(whereJson) && !Array.isArray(whereJson), whereJsonRes.out.slice(0, 200));
+eq('where --json reports the auth path', whereJson?.authJson, path.join(codexHome, 'auth.json'));
+eq('where --json reports the accounts dir', whereJson?.accountsDir, accountsDir);
+check(
+  'where --json reports a codex binary path',
+  typeof whereJson?.codexBinary === 'string' && whereJson.codexBinary.length > 0
+);
+
+/* ------------------------------------------------------------------ */
 /* Summary                                                             */
 /* ------------------------------------------------------------------ */
 

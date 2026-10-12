@@ -162,9 +162,42 @@ function creditsText(u) {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Emit a JSON document on stdout and nothing else.
+ *
+ * The desktop GUI parses this, so it has to be the *only* thing on stdout:
+ * no chalk, no trailing banner, no update notice. Written with
+ * `process.stdout.write` rather than `console.log` so a pretty-printed
+ * document keeps its own trailing newline instead of gaining a second one.
+ */
+function writeJson(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
 async function cmdList(argv) {
-  const live = Boolean(argv.includes('--usage') || argv.includes('-u'));
+  const json = argv.includes('--json');
+  // --json is a machine contract for the desktop GUI: it must never fan out
+  // into a live usage fetch, or the caller gets a slow, network-dependent list.
+  const live = !json && Boolean(argv.includes('--usage') || argv.includes('-u'));
   const accounts = listAccounts();
+  const liveAuth = readLiveAuth();
+  const liveId = liveAuth ? identityOf(liveAuth) : null;
+
+  if (json) {
+    writeJson(
+      accounts.map((a) => ({
+        name: a.name,
+        email: a.email,
+        displayName: a.displayName,
+        plan: a.plan,
+        status: a.status,
+        expiresAt: a.expiresAt,
+        isActive: Boolean(liveId && a.auth && identityOf(a.auth) === liveId),
+        error: a.error || null,
+      }))
+    );
+    return;
+  }
 
   if (!accounts.length) {
     console.log();
@@ -174,9 +207,6 @@ async function cmdList(argv) {
     console.log();
     return;
   }
-
-  const liveAuth = readLiveAuth();
-  const liveId = liveAuth ? identityOf(liveAuth) : null;
 
   console.log();
   console.log(chalk.bold.cyan('  Codex accounts') + chalk.gray(`  (${accounts.length})`));
@@ -240,10 +270,76 @@ async function printUsageTable(accounts) {
   console.log();
 }
 
+/**
+ * Fetch usage for each archive and flatten it into the JSON contract the
+ * desktop GUI consumes.
+ *
+ * One row per account, always present — a failed fetch becomes `ok:false`
+ * plus an `error` string rather than a missing row, so the GUI can show the
+ * failure next to the account instead of silently dropping it.
+ *
+ * `windows` stays a *list*: Codex reports a 5h + 7d pair on paid plans but a
+ * single 30-day window on free, so there is no fixed set of columns to map
+ * onto.
+ */
+async function usageRows(accounts) {
+  const rows = [];
+  for (const a of accounts) {
+    const row = {
+      name: a.name,
+      email: a.email,
+      planType: a.plan || null,
+      ok: false,
+      error: null,
+      limitReached: null,
+      noCapReported: false,
+      windows: [],
+      credits: null,
+      resetCredits: null,
+      modelUsage: {},
+    };
+
+    if (!a.auth) {
+      row.error = 'no credential';
+      rows.push(row);
+      continue;
+    }
+
+    try {
+      const u = await fetchUsage(a.auth, {
+        onTokenRefreshed: (tokens) => updateAccountTokens(a.name, tokens),
+      });
+      if (u.ok) {
+        row.ok = true;
+        row.planType = u.planType || a.plan || null;
+        row.limitReached = u.limitReached;
+        row.noCapReported = u.noCapReported;
+        row.windows = u.windows;
+        row.credits = u.credits;
+        row.resetCredits = u.resetCredits;
+        row.modelUsage = u.modelUsage;
+      } else {
+        row.error = u.error;
+      }
+    } catch (err) {
+      row.error = err.message;
+    }
+
+    rows.push(row);
+  }
+  return rows;
+}
+
 async function cmdUsage(argv) {
+  const json = argv.includes('--json');
   const only = argv.filter((a) => !a.startsWith('-'));
   const all = listAccounts();
   const accounts = only.length ? all.filter((a) => only.includes(a.name)) : all;
+
+  if (json) {
+    writeJson(await usageRows(accounts));
+    return;
+  }
 
   if (!accounts.length) {
     console.log();
@@ -477,6 +573,13 @@ ${chalk.bold('  Usage')}
     ${chalk.cyan(`${CMD} update --check`)}      Only report whether an update is available
     ${chalk.cyan(`${CMD} where`)}               Print the resolved paths
 
+${chalk.bold('  Machine-readable output')}
+    ${chalk.cyan(`${CMD} list --json`)}         Account list as JSON (what the desktop GUI reads)
+    ${chalk.cyan(`${CMD} usage --json`)}        Usage as JSON — one row per account, with a windows array
+    ${chalk.cyan(`${CMD} where --json`)}        Resolved paths as JSON
+    With ${chalk.gray('--json')} stdout carries the document and nothing else: no colour, no
+    banners, and the background update notice is suppressed so it can't corrupt it.
+
 ${chalk.bold('  Usage output')}
     Each window shows a bar, a percentage, and when it rolls over, e.g.
     ${chalk.white('Resets: October 18, 21:37, 2026 (in 6d 2h)')} (local time; the
@@ -503,9 +606,13 @@ export async function runCli(argv) {
   const [cmd, ...rest] = argv;
 
   // Suppress the background check when the user is already managing updates
-  // directly, or has opted out.
+  // directly, has opted out, or asked for machine-readable output — a stray
+  // notice line would corrupt the JSON the caller is parsing.
   const wantsNotice =
-    process.env.CODEX_NO_UPDATE_CHECK !== '1' && cmd !== 'update' && cmd !== 'upgrade';
+    process.env.CODEX_NO_UPDATE_CHECK !== '1' &&
+    cmd !== 'update' &&
+    cmd !== 'upgrade' &&
+    !argv.includes('--json');
 
   if (wantsNotice) {
     // Never let a slow network stall the real command: give the check a short
@@ -536,13 +643,23 @@ export async function runCli(argv) {
     case 'update':
     case 'upgrade':
       return cmdUpdate(rest);
-    case 'where':
+    case 'where': {
+      const codexBinary = findCodexBinary();
+      if (rest.includes('--json')) {
+        writeJson({
+          authJson: authJsonPath(),
+          accountsDir: accountsDir(),
+          codexBinary,
+        });
+        return;
+      }
       console.log();
       console.log(chalk.gray('  codex home   ') + chalk.white(authJsonPath()));
       console.log(chalk.gray('  archives     ') + chalk.white(accountsDir()));
-      console.log(chalk.gray('  codex binary ') + chalk.white(findCodexBinary()));
+      console.log(chalk.gray('  codex binary ') + chalk.white(codexBinary));
       console.log();
       return;
+    }
     case undefined:
     case 'help':
     case '--help':
