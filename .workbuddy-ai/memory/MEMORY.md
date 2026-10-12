@@ -3,6 +3,22 @@
 Codex CLI 多帳號管理工具，是 `goldshoot0720/MultiGrokState` 的 Codex 版改寫。
 Node.js ESM + chalk ^5，無其他依賴。
 
+## ⚙️ 工作約定（使用者指定，必須遵守）
+
+**每次改完檔案就自動 commit + push，不用再問。**（使用者 2026-10-12 指定）
+
+- **只在真的有變動時提交**：先 `git status --porcelain`，乾淨就跳過，
+  **絕不加 `--allow-empty`**（空 commit 只會污染歷史）。
+- **訊息格式沿用 conventional commits**：`feat:` / `fix:` / `chore:` / `docs:` / `test:`，
+  body 寫「為什麼」而不只是「改了什麼」——照既有 commit（b31f034 / 7225218 / 81eb5df）的寫法。
+- **直接推 `origin main`**（`github.com/goldshoot0720/MultiCodexState`）。
+  這是單人專案，**不要另開 branch、不要開 PR**。
+- **憑證紅線**：`auth.json` / `*_auth.json` 已被 `.gitignore` 擋掉。
+  commit 前掃一眼 staged 清單，**確認沒有用 `-f` 把憑證塞進來**。
+- **動到 `install.ps1` / `install.cmd` 時**，commit 前先驗 CRLF（見下方紅線），
+  否則會把 LF 汙染推上去，raw 端點的 curl 安裝就壞了。
+- `git config` 已就緒：`goldshoot0720 <goldshoot0720@gmail.com>`、`credential.helper=helper-selector`。
+
 ## 與 MultiGrokState 的關鍵差異（改寫時最容易踩的地方）
 
 | 面向 | Grok | Codex |
