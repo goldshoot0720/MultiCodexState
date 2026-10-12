@@ -1,0 +1,17 @@
+# Windows batch files MUST contain CRLF bytes in the repository itself.
+#
+# Do NOT use "text eol=crlf" here: that normalises to LF in the git object,
+# so GitHub's raw endpoint (used by the curl one-liner) would still serve LF
+# and cmd.exe would misparse the script into a garbled infinite loop.
+# Marking them "-text" keeps the working-tree bytes verbatim in the blob.
+*.cmd -text
+*.bat -text
+*.ps1 -text
+
+# Shell scripts must stay LF.
+*.sh text eol=lf
+
+# JS/MD/JSON: normalise on commit.
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf

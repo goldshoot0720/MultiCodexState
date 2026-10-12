@@ -1,0 +1,22 @@
+{
+  "name": "multi-codex-state",
+  "version": "1.0.0",
+  "description": "Multi-account manager for Codex CLI — login/logout via auth.json copy, plus live usage/quota panel",
+  "type": "module",
+  "bin": {
+    "MultiCodexState": "./bin/cs.js"
+  },
+  "scripts": {
+    "start": "node bin/cs.js",
+    "list": "node bin/cs.js list",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "private": true
+}
