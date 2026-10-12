@@ -50,6 +50,20 @@ Node.js ESM + chalk ^5，無其他依賴。
 - 測試**不可斷言「當下 checkout」的 git 狀態** → 第 10 節在暫存 repo 裡自己造
   branch / detached 兩種狀態（install.sh 會把安裝副本留在 detached）。
 
+## ⚠️ 從 MultiGrokState 改名時的最大陷阱
+
+**`bin/gs.js` 這個「內部檔名」不在專案名替換清單裡**，第一次改名時漏掉，
+導致三個 installer 全部指向不存在的舊檔名。已定案為 **`bin/multicodexstate.js`**。
+
+- 整體改名後要 grep 舊專案的**所有識別字**：專案全名、小寫變體、縮寫、
+  **檔名**（`gs.js`）、環境變數前綴（`MG_`）、binary 名（`grok`）。
+- **`npm link` 讀 `package.json` 的 `bin`，所以檔名錯了它照樣成功** →
+  e2e 安裝「看起來」正常，只有 smoke test 會警告（且只印警告不中斷）。
+  **驗證時要涵蓋 `--no-link` 等非 happy path。**
+- 改 `install.ps1` / `install.cmd` 一律用 **Node 逐字替換**，不要用 Git Bash 的 sed
+  （sed 會把 CRLF 吃成 LF）；改完必驗 `CRLF=… bareLF=0`。
+
+
 ## 待辦 / 未做
 
 - `codex login` 的互動流程未在 CI 驗證（需要瀏覽器）。

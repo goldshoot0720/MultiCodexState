@@ -65,7 +65,7 @@ Options:
   --install-dir <path>   Where to install. Default: ~/.multicodexstate
   --repo <owner/name>    Source repository. Default: goldshoot0720/MultiCodexState
   --branch <name>        Branch or tag to install. Default: main
-  --no-link              Skip `npm link`; run it via `node bin/gs.js` instead
+  --no-link              Skip `npm link`; run it via `node bin/multicodexstate.js` instead
   -f, --force            Reinstall from scratch, discarding the existing copy
   -h, --help             Show this help
 
@@ -356,7 +356,7 @@ fi
 rm -f "$_log"
 ok "dependencies installed"
 
-chmod +x "$INSTALL_DIR/bin/gs.js" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/bin/multicodexstate.js" 2>/dev/null || true
 
 # npm chmods the bin target to 0755 when it links it, which makes `git status`
 # report a mode change and would leave `MultiCodexState update` refusing to run
@@ -372,7 +372,7 @@ NEED_PATH=0
 LINK_DIR=''
 
 if [ "$NO_LINK" -eq 1 ]; then
-  warn "Skipped npm link (--no-link). Run it with: node \"$INSTALL_DIR/bin/gs.js\""
+  warn "Skipped npm link (--no-link). Run it with: node \"$INSTALL_DIR/bin/multicodexstate.js\""
 else
   step "Registering the 'MultiCodexState' command..."
   _log="$(mktemp "${TMPDIR:-/tmp}/multicodexstate-link.XXXXXX")"
@@ -403,8 +403,8 @@ else
     warn "npm link failed - falling back to a symlink in ~/.local/bin"
     LINK_DIR="$HOME/.local/bin"
     mkdir -p "$LINK_DIR"
-    chmod +x "$INSTALL_DIR/bin/gs.js" 2>/dev/null || true
-    ln -sf "$INSTALL_DIR/bin/gs.js" "$LINK_DIR/MultiCodexState"
+    chmod +x "$INSTALL_DIR/bin/multicodexstate.js" 2>/dev/null || true
+    ln -sf "$INSTALL_DIR/bin/multicodexstate.js" "$LINK_DIR/MultiCodexState"
     ok "linked into $LINK_DIR"
   fi
   rm -f "$_log"
@@ -433,11 +433,11 @@ fi
 # --- 7. Verify -------------------------------------------------------------
 
 step "Verifying installation..."
-if node "$INSTALL_DIR/bin/gs.js" where >/dev/null 2>&1; then
+if node "$INSTALL_DIR/bin/multicodexstate.js" where >/dev/null 2>&1; then
   ok "smoke test passed"
 else
   warn "smoke test returned a non-zero exit code"
-  node "$INSTALL_DIR/bin/gs.js" where 2>&1 | sed 's/^/       /' || true
+  node "$INSTALL_DIR/bin/multicodexstate.js" where 2>&1 | sed 's/^/       /' || true
 fi
 
 # --- Done ------------------------------------------------------------------

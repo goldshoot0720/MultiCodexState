@@ -207,7 +207,7 @@ finally {
 }
 
 if ($linkExit -ne 0) {
-    Write-Warn2 "npm link failed — you can still run: node `"$InstallDir\bin\gs.js`""
+    Write-Warn2 "npm link failed — you can still run: node `"$InstallDir\bin\multicodexstate.js`""
 }
 else {
     Write-Ok "command registered"
@@ -216,7 +216,7 @@ else {
 # --- 5. Verify ----------------------------------------------------------
 
 Write-Step "Verifying installation..."
-$smoke = & node (Join-Path $InstallDir "bin\gs.js") where 2>&1
+$smoke = & node (Join-Path $InstallDir "bin\multicodexstate.js") where 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Ok "smoke test passed"
 }

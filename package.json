@@ -4,11 +4,11 @@
   "description": "Multi-account manager for Codex CLI — login/logout via auth.json copy, plus live usage/quota panel",
   "type": "module",
   "bin": {
-    "MultiCodexState": "./bin/cs.js"
+    "MultiCodexState": "./bin/multicodexstate.js"
   },
   "scripts": {
-    "start": "node bin/cs.js",
-    "list": "node bin/cs.js list",
+    "start": "node bin/multicodexstate.js",
+    "list": "node bin/multicodexstate.js list",
     "test": "node test/run.js"
   },
   "dependencies": {

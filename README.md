@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/goldshoot0720/MultiCodexState/main/
 | `--install-dir <path>` | `~/.multicodexstate` | Where to install |
 | `--repo <owner/name>` | `goldshoot0720/MultiCodexState` | Source repository |
 | `--branch <name>` | `main` | Branch or tag to install |
-| `--no-link` | off | Skip `npm link`; run via `node bin/cs.js` |
+| `--no-link` | off | Skip `npm link`; run via `node bin/multicodexstate.js` |
 | `-f`, `--force` | off | Reinstall from scratch |
 | `-h`, `--help` | — | Usage |
 
@@ -86,7 +86,7 @@ MultiCodexState          # show help
 Run it in place without linking:
 
 ```bash
-node bin/cs.js list          # from the project directory
+node bin/multicodexstate.js list          # from the project directory
 ```
 
 ```
@@ -336,7 +336,7 @@ merged back into the stored credential, preserving `account_id`.
 ## Layout
 
 ```
-bin/cs.js          CLI entry point (the file name is internal; the command is MultiCodexState)
+bin/multicodexstate.js  CLI entry point (the file name is internal; the command is MultiCodexState)
 src/paths.js       path resolution + name sanitising
 src/accounts.js    auth.json parsing, archive read/write, JWT decode
 src/usage.js       usage endpoint, token refresh, response normalisation

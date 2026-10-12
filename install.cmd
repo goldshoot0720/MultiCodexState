@@ -139,7 +139,7 @@ set "LINK_EXIT=!ERRORLEVEL!"
 popd
 
 if !LINK_EXIT! neq 0 (
-    echo   [!!] npm link failed - you can still run: node "!INSTALL_DIR!\bin\gs.js"
+    echo   [!!] npm link failed - you can still run: node "!INSTALL_DIR!\bin\multicodexstate.js"
 ) else (
     echo   [ok] command registered
 )
@@ -147,7 +147,7 @@ if !LINK_EXIT! neq 0 (
 REM --- Verify ----------------------------------------------------------
 
 echo   Verifying installation...
-node "!INSTALL_DIR!\bin\gs.js" where >nul 2>&1
+node "!INSTALL_DIR!\bin\multicodexstate.js" where >nul 2>&1
 if !ERRORLEVEL! equ 0 (
     echo   [ok] smoke test passed
 ) else (
