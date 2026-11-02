@@ -63,6 +63,12 @@ the first symlink and then aborts with `EEXIST` on the second. The installers
 therefore judge success by whether the command actually resolves rather than by
 npm's exit code.
 
+The PowerShell installer captures native stderr and checks exit codes, so Git
+progress and npm diagnostics do not abort Windows PowerShell 5.1. If `npm link`
+reports `EEXIST`, it verifies that the existing command runs and targets the
+requested installation before accepting it. A failed Git update keeps the
+existing installation and reports the error.
+
 > **If `irm` fails with `WebCmdletWebResponseException` / `HttpWebRequest`**
 > this is a TLS or proxy problem in your PowerShell session, not with the
 > script. Force TLS 1.2 first, then retry:
@@ -390,6 +396,13 @@ dead localhost port. Section 9 of the suite guards against that regression.)
 ```bash
 npm test              # run all 155 checks
 node test/run.js --keep   # keep the sandbox for manual poking
+```
+
+Windows installer regression checks run offline with temporary command fixtures:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File test/install-powershell.ps1
+pwsh -NoProfile -File test/install-powershell.ps1
 ```
 
 Covered: path sanitising and traversal containment, JWT/identity/plan parsing,

@@ -46,6 +46,17 @@ function Write-Step($msg) { Write-Host "  $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "  [ok] $msg" -ForegroundColor Green }
 function Write-Warn2($msg) { Write-Host "  [!!] $msg" -ForegroundColor Yellow }
 
+# Windows PowerShell turns redirected native stderr into ErrorRecords. Git
+# progress and npm diagnostics must not bypass our exit-code checks under Stop.
+function Invoke-InstallerNative {
+    param([string]$FilePath, [string[]]$ArgumentList)
+
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    $output = @(& $FilePath @ArgumentList 2>&1 | ForEach-Object { "$_" })
+    [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+}
+
 Write-Host ""
 Write-Host "  MultiCodexState installer" -ForegroundColor White
 Write-Host "  ------------------------" -ForegroundColor DarkGray
@@ -75,7 +86,7 @@ if ($nodeMajor -lt 18) {
 }
 Write-Ok "node v$nodeVersion"
 
-$npm = Get-Command npm -ErrorAction SilentlyContinue
+$npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $npm) {
     Write-Host "  npm was not found on PATH (it ships with Node.js)." -ForegroundColor Red
     exit 1
@@ -114,13 +125,16 @@ if ((Test-Path (Join-Path $InstallDir ".git")) -and -not $Force) {
 
     try {
         $fetchRef = if ($updSha) { $updSha } else { $Branch }
-        git -C $InstallDir fetch --depth 1 origin $fetchRef 2>&1 | Out-Null
-        git -C $InstallDir checkout -q FETCH_HEAD 2>&1 | Out-Null
+        $fetch = Invoke-InstallerNative git @('-C', $InstallDir, 'fetch', '--depth', '1', 'origin', $fetchRef)
+        if ($fetch.ExitCode -ne 0) { throw ($fetch.Output -join "`n") }
+        $checkout = Invoke-InstallerNative git @('-C', $InstallDir, 'checkout', '-q', 'FETCH_HEAD')
+        if ($checkout.ExitCode -ne 0) { throw ($checkout.Output -join "`n") }
         Write-Ok "source updated"
     }
     catch {
-        Write-Warn2 "git pull failed, falling back to a fresh clone"
-        Remove-Item -Recurse -Force $InstallDir
+        Write-Warn2 "git update failed: $($_.Exception.Message)"
+        Write-Warn2 "Keeping the existing installation. Resolve the update error and retry."
+        exit 1
     }
 }
 
@@ -129,11 +143,6 @@ if (-not (Test-Path (Join-Path $InstallDir "package.json"))) {
     if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir }
     New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir -Parent) | Out-Null
 
-    # git writes progress to stderr; with $ErrorActionPreference = 'Stop' that
-    # would abort the script even on success. Run it with 'Continue' and judge
-    # the result by the exit code instead.
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
     $cloneExit = 1
     try {
         # Resolve the branch to a concrete commit SHA first. Branch-name URLs
@@ -153,19 +162,22 @@ if (-not (Test-Path (Join-Path $InstallDir "package.json"))) {
 
         if ($sha) {
             Write-Step "Fetching commit $($sha.Substring(0, 7)) on $Branch..."
-            git init -q $InstallDir
-            git -C $InstallDir remote add origin "https://github.com/$Repo.git"
-            git -C $InstallDir fetch -q --depth 1 origin $sha
-            git -C $InstallDir checkout -q FETCH_HEAD
-            $cloneExit = $LASTEXITCODE
+            $clone = Invoke-InstallerNative git @('init', '-q', $InstallDir)
+            if ($clone.ExitCode -ne 0) { throw ($clone.Output -join "`n") }
+            $clone = Invoke-InstallerNative git @('-C', $InstallDir, 'remote', 'add', 'origin', "https://github.com/$Repo.git")
+            if ($clone.ExitCode -ne 0) { throw ($clone.Output -join "`n") }
+            $clone = Invoke-InstallerNative git @('-C', $InstallDir, 'fetch', '-q', '--depth', '1', 'origin', $sha)
+            if ($clone.ExitCode -ne 0) { throw ($clone.Output -join "`n") }
+            $clone = Invoke-InstallerNative git @('-C', $InstallDir, 'checkout', '-q', 'FETCH_HEAD')
+            $cloneExit = $clone.ExitCode
         }
         else {
-            git clone --depth 1 --branch $Branch "https://github.com/$Repo.git" $InstallDir 2>&1 | Out-Null
-            $cloneExit = $LASTEXITCODE
+            $clone = Invoke-InstallerNative git @('clone', '--depth', '1', '--branch', $Branch, "https://github.com/$Repo.git", $InstallDir)
+            $cloneExit = $clone.ExitCode
         }
     }
-    finally {
-        $ErrorActionPreference = $prevEap
+    catch {
+        Write-Warn2 "git download failed: $($_.Exception.Message)"
     }
 
     if ($cloneExit -ne 0 -or -not (Test-Path (Join-Path $InstallDir "package.json"))) {
@@ -181,8 +193,8 @@ if (-not (Test-Path (Join-Path $InstallDir "package.json"))) {
 Write-Step "Installing dependencies (chalk)..."
 Push-Location $InstallDir
 try {
-    & npm install --no-audit --no-fund --loglevel=error 2>&1 | Out-Null
-    $npmExit = $LASTEXITCODE
+    $install = Invoke-InstallerNative $npm.Source @('install', '--no-audit', '--no-fund', '--loglevel=error')
+    $npmExit = $install.ExitCode
 }
 finally {
     Pop-Location
@@ -190,6 +202,7 @@ finally {
 
 if ($npmExit -ne 0) {
     Write-Host "  npm install failed (exit code $npmExit)" -ForegroundColor Red
+    $install.Output | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkGray }
     exit 1
 }
 Write-Ok "dependencies installed"
@@ -199,15 +212,44 @@ Write-Ok "dependencies installed"
 Write-Step "Registering the 'MultiCodexState' command..."
 Push-Location $InstallDir
 try {
-    & npm link --no-audit --no-fund --loglevel=error 2>&1 | Out-Null
-    $linkExit = $LASTEXITCODE
+    $link = Invoke-InstallerNative $npm.Source @('link', '--no-audit', '--no-fund', '--loglevel=error')
+    $linkExit = $link.ExitCode
 }
 finally {
     Pop-Location
 }
 
 if ($linkExit -ne 0) {
-    Write-Warn2 "npm link failed — you can still run: node `"$InstallDir\bin\multicodexstate.js`""
+    # An older npm shim can cause EEXIST while still launching this install.
+    # Verify both execution and target before accepting it; never overwrite an
+    # unrelated command with npm link --force.
+    $registered = Get-Command MultiCodexState.cmd -ErrorAction SilentlyContinue
+    $existingWorks = $false
+    if ($registered -and ($link.Output -match 'EEXIST')) {
+        $probe = Invoke-InstallerNative $registered.Source @('where', '--json')
+        if ($probe.ExitCode -eq 0) {
+            try {
+                $resolved = ($probe.Output -join "`n") | ConvertFrom-Json
+                # Check the shim's target as well as its output: another copy
+                # can report the same Codex home.
+                $shimTarget = Join-Path (Split-Path $registered.Source -Parent) 'node_modules\multi-codex-state'
+                $target = Invoke-InstallerNative node @('-e', "console.log(require('fs').realpathSync(process.argv[1]))", $shimTarget)
+                $installTarget = Invoke-InstallerNative node @('-e', "console.log(require('fs').realpathSync(process.argv[1]))", $InstallDir)
+                $existingWorks = $target.ExitCode -eq 0 -and $installTarget.ExitCode -eq 0 -and
+                    ($target.Output -join '') -eq ($installTarget.Output -join '') -and
+                    $resolved.accountsDir -and $resolved.authJson
+            }
+            catch { $existingWorks = $false }
+        }
+    }
+    if ($existingWorks) {
+        Write-Ok "command already registered (verified existing link after npm EEXIST)"
+    }
+    else {
+        Write-Warn2 "npm link failed (exit code $linkExit)"
+        $link.Output | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkGray }
+        Write-Warn2 "Run directly: node `"$InstallDir\bin\multicodexstate.js`""
+    }
 }
 else {
     Write-Ok "command registered"
@@ -216,13 +258,13 @@ else {
 # --- 5. Verify ----------------------------------------------------------
 
 Write-Step "Verifying installation..."
-$smoke = & node (Join-Path $InstallDir "bin\multicodexstate.js") where 2>&1
-if ($LASTEXITCODE -eq 0) {
+$smoke = Invoke-InstallerNative node @((Join-Path $InstallDir "bin\multicodexstate.js"), 'where', '--json')
+if ($smoke.ExitCode -eq 0) {
     Write-Ok "smoke test passed"
 }
 else {
     Write-Warn2 "smoke test returned a non-zero exit code"
-    $smoke | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkGray }
+    $smoke.Output | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkGray }
 }
 
 # --- 6. PATH fallback ---------------------------------------------------
