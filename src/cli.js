@@ -156,7 +156,7 @@ function creditsText(u) {
   if (u.credits?.unlimited) bits.push('unlimited credits');
   else if (u.credits?.hasCredits) bits.push('credits available');
   if (u.credits?.balance != null) bits.push(`balance ${u.credits.balance}`);
-  if (u.resetCredits) bits.push(`${u.resetCredits} reset credit(s)`);
+  if (u.resetCredits != null) bits.push(`${u.resetCredits} reset credit(s)`);
   return bits.length ? bits.join(' · ') : null;
 }
 
@@ -262,6 +262,8 @@ async function printUsageTable(accounts) {
       );
       const reset = resetLine(w ? w.resetAt : null);
       if (reset) console.log(`${indent}${' '.repeat(21)}${reset}`);
+      const credits = creditsText(u);
+      if (credits) console.log(`${indent}${chalk.gray(credits)}`);
     } catch (err) {
       console.log(`${indent}${chalk.red(`✖ ${err.message}`)}`);
     }

@@ -95,7 +95,7 @@ MultiCodexState logout          # archive auth.json as accounts/<email>_auth.jso
 MultiCodexState logout <name>   # same, but archive under an explicit name
 MultiCodexState switch <name>   # copy an archive back into auth.json
 MultiCodexState usage           # plan + rate-limit windows + reset time per account
-MultiCodexState list --usage    # account table + live quota + reset time
+MultiCodexState list --usage    # account table + live quota + reset time + reset credits
 MultiCodexState update          # check GitHub and pull the latest version
 MultiCodexState where           # print resolved paths
 ```
@@ -286,6 +286,11 @@ Two details worth knowing:
   `Invalid Date` leaking into the UI.
 
 #### Reset time
+
+`list --usage` (or `list -u`) also shows the available reset credits below each
+account's quota, for example `1 reset credit(s)`. A reported count of zero is
+shown as `0 reset credit(s)`; the line is omitted when the backend does not
+report a count or any other credits information.
 
 Every window prints when it rolls over, rendered in **your local timezone**:
 
