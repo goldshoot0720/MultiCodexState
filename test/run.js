@@ -549,7 +549,7 @@ section('11. --json output');
  * runCli) is deliberate: it is the only way to catch a stray banner or
  * update notice corrupting the document.
  */
-function runCliJson(args) {
+function runTestCli(args) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'multicodexstate.js'), ...args], {
       cwd: ROOT,
@@ -576,7 +576,7 @@ function parseJson(text) {
 mock.mode = 'ok';
 mock.calls = { usage: 0, token: 0 };
 
-const listJsonRes = await runCliJson(['list', '--json']);
+const listJsonRes = await runTestCli(['list', '--json']);
 eq('list --json exits 0', listJsonRes.code, 0);
 check('list --json emits no ANSI escapes', !/\u001b\[/.test(listJsonRes.out), JSON.stringify(listJsonRes.out.slice(0, 120)));
 check(
@@ -607,7 +607,7 @@ const jsonBeta = listJson.find((a) => a.name === 'beta');
 eq('list --json marks the expired archive', jsonBeta?.status, 'expired');
 eq('list --json marks the inactive archive', jsonBeta?.isActive, false);
 
-const usageJsonRes = await runCliJson(['usage', '--json']);
+const usageJsonRes = await runTestCli(['usage', '--json']);
 eq('usage --json exits 0', usageJsonRes.code, 0);
 check('usage --json emits no ANSI escapes', !/\u001b\[/.test(usageJsonRes.out), JSON.stringify(usageJsonRes.out.slice(0, 120)));
 eq('usage --json does hit the network', mock.calls.usage > 0, true);
@@ -650,7 +650,7 @@ mock.usagePayload = {
   credits: { has_credits: false, unlimited: false, balance: null },
 };
 
-const freeJsonRes = await runCliJson(['usage', '--json']);
+const freeJsonRes = await runTestCli(['usage', '--json']);
 const freeRow = (parseJson(freeJsonRes.out) || []).find((u) => u.name === 'alpha');
 eq('usage --json handles the free plan', freeRow?.ok, true);
 eq('the free plan reports exactly one window', freeRow?.windows?.length, 1);
@@ -664,7 +664,7 @@ mock.usagePayload = {
   rate_limit: { allowed: true, limit_reached: false, primary_window: null, secondary_window: null },
 };
 
-const noCapRes = await runCliJson(['usage', '--json']);
+const noCapRes = await runTestCli(['usage', '--json']);
 const noCapRow = (parseJson(noCapRes.out) || []).find((u) => u.name === 'alpha');
 eq('a windowless payload reports noCapReported', noCapRow?.noCapReported, true);
 eq('a windowless payload carries no windows', noCapRow?.windows?.length, 0);
@@ -672,7 +672,7 @@ eq('a windowless payload carries no windows', noCapRow?.windows?.length, 0);
 // Restore the shared payload so nothing downstream inherits the free plan.
 mock.usagePayload = defaultUsagePayload();
 
-const whereJsonRes = await runCliJson(['where', '--json']);
+const whereJsonRes = await runTestCli(['where', '--json']);
 eq('where --json exits 0', whereJsonRes.code, 0);
 const whereJson = parseJson(whereJsonRes.out);
 check('where --json parses as an object', Boolean(whereJson) && !Array.isArray(whereJson), whereJsonRes.out.slice(0, 200));
@@ -682,6 +682,32 @@ check(
   'where --json reports a codex binary path',
   typeof whereJson?.codexBinary === 'string' && whereJson.codexBinary.length > 0
 );
+
+section('12. list --usage terminal output');
+
+// Return the weekly window first to exercise duration-based ordering.
+const limits = mock.usagePayload.rate_limit;
+[limits.primary_window, limits.secondary_window] = [limits.secondary_window, limits.primary_window];
+const compact = await runTestCli(['list', '--usage']);
+eq('list --usage exits 0', compact.code, 0);
+const lines = compact.out.replace(/\u001b\[[0-9;]*m/g, '').split('\n').map((line) => line.trim());
+const shortReset = usage.formatResetTime(limits.secondary_window.reset_at, { withYear: true });
+const weekReset = usage.formatResetTime(limits.primary_window.reset_at, { withYear: true });
+for (const name of ['alpha', 'beta']) {
+  const header = lines.indexOf(`${name.padEnd(16)}${name}@example.com`);
+  check(`${name} shows 5h usage and its reset first`,
+    header >= 0 && /42\.5%\s+\[5h\]$/.test(lines[header + 1])
+    && lines[header + 2]?.startsWith(`Resets: ${shortReset}`));
+  check(`${name} shows weekly usage and its reset next`,
+    header >= 0 && /12\.0%\s+\[weekly\]$/.test(lines[header + 3])
+    && lines[header + 4]?.startsWith(`Resets: ${weekReset}`));
+  eq(`${name} shows credits below both windows`, lines[header + 5], '1 reset credit(s)');
+}
+
+limits.primary_window = limits.secondary_window;
+limits.secondary_window = null;
+const shortOnly = await runTestCli(['list', '-u']);
+check('list -u only shows reported windows', shortOnly.out.includes('[5h]') && !shortOnly.out.includes('[weekly]'));
 
 /* ------------------------------------------------------------------ */
 /* Summary                                                             */

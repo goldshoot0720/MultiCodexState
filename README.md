@@ -293,8 +293,10 @@ Two details worth knowing:
 
 #### Reset time
 
-`list --usage` (or `list -u`) also shows the available reset credits below each
-account's quota, for example `1 reset credit(s)`. A reported count of zero is
+`list --usage` (or `list -u`) shows each account's reported windows from
+shortest to longest, such as `[5h]` followed by `[weekly]`. Each has its own
+usage percentage and reset time. Available reset credits appear below the
+windows, for example `1 reset credit(s)`. A reported count of zero is
 shown as `0 reset credit(s)`; the line is omitted when the backend does not
 report a count or any other credits information.
 

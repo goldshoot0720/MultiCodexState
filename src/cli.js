@@ -141,15 +141,6 @@ function resetLine(value, { label = 'Resets' } = {}) {
   return `${head} ${absolute}${rel}`;
 }
 
-/** The window we surface in the compact table: the tightest reported one. */
-function headlineWindow(u) {
-  if (!u.windows || !u.windows.length) return null;
-  // Prefer the shortest window — that is the one that runs out first.
-  return u.windows
-    .slice()
-    .sort((a, b) => (a.windowSeconds || Infinity) - (b.windowSeconds || Infinity))[0];
-}
-
 /** "used 42 · no capped allowance" style hint, or null. */
 function creditsText(u) {
   const bits = [];
@@ -254,14 +245,14 @@ async function printUsageTable(accounts) {
         console.log(`${indent}${chalk.red(`✖ ${u.error}`)}`);
         continue;
       }
-      const w = headlineWindow(u);
-      const pct = w ? w.usedPercent ?? (u.noCapReported ? 0 : null) : u.noCapReported ? 0 : null;
-      const period = w ? `[${w.label}]` : '';
-      console.log(
-        `${indent}${paintBar(pct)} ${paintPercent(pct).padEnd(14)} ${chalk.gray(period)}`
-      );
-      const reset = resetLine(w ? w.resetAt : null);
-      if (reset) console.log(`${indent}${' '.repeat(21)}${reset}`);
+      const windows = u.windows.slice().sort((a, b) => (a.windowSeconds || Infinity) - (b.windowSeconds || Infinity));
+      for (const w of windows) {
+        const pct = w.usedPercent;
+        console.log(`${indent}${paintBar(pct)} ${padVisible(paintPercent(pct), 6)} ${chalk.gray(`[${w.label}]`)}`);
+        const reset = resetLine(w.resetAt);
+        if (reset) console.log(`${indent}${' '.repeat(21)}${reset}`);
+      }
+      if (u.noCapReported) console.log(`${indent}${paintBar(0)} ${paintPercent(0)}`);
       const credits = creditsText(u);
       if (credits) console.log(`${indent}${chalk.gray(credits)}`);
     } catch (err) {
