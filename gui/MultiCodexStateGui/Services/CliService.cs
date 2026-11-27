@@ -141,6 +141,27 @@ public class CliService
     /// always talks to the source tree it was built from rather than a stale
     /// globally-installed copy.
     /// </summary>
+    /// <summary>
+    /// Finder-launched apps do not inherit a shell PATH, so <c>node</c> on
+    /// Homebrew is invisible unless we look it up ourselves.
+    /// </summary>
+    private static string FindNode()
+    {
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = Path.Combine(dir, "node");
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        foreach (var candidate in new[] { "/opt/homebrew/bin/node", "/usr/local/bin/node" })
+        {
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        return "node";
+    }
+
     private static string? FindRepoCli()
     {
         // Current name first, then the pre-rename name so a GUI binary still
@@ -174,7 +195,7 @@ public class CliService
 
         var repo = FindRepoCli();
         if (repo != null)
-            return ("node", $"\"{repo}\" {cliArgs}");
+            return (FindNode(), $"\"{repo}\" {cliArgs}");
 
         if (OperatingSystem.IsWindows())
             return ("cmd.exe", $"/c MultiCodexState {cliArgs}");
@@ -197,7 +218,7 @@ public class CliService
         {
             if (OperatingSystem.IsWindows())
                 return ("cmd.exe", $"/c node \"{repo}\" {cliArgs} & pause");
-            return ("node", $"\"{repo}\" {cliArgs}");
+            return (FindNode(), $"\"{repo}\" {cliArgs}");
         }
 
         if (OperatingSystem.IsWindows())

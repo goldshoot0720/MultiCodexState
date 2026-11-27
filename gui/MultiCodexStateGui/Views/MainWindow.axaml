@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="640"
         x:Class="MultiCodexStateGui.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/app-icon.png"
         Title="MultiCodexState"
         Width="920" Height="640"
         MinWidth="680" MinHeight="440"

@@ -349,6 +349,21 @@ check(
   relative.windows[0].resetAt > Date.now() + 7000 * 1000
 );
 
+const objectModels = usage.parseUsage({
+  plan_type: 'team',
+  rate_limit: {
+    primary_window: { used_percent: 100, limit_window_seconds: 18_000, reset_at: epochSec },
+    secondary_window: { used_percent: 77, limit_window_seconds: 604_800, reset_at: epochSec },
+  },
+  model_usage: { 'gpt-6-astra': { available: false, credits_would_enable: true } },
+});
+eq('a nested model_usage still keeps the 5h window', objectModels.windows[0].label, '5h');
+eq('a nested model_usage still keeps the weekly window', objectModels.windows[1].label, 'weekly');
+check(
+  'a nested model_usage is not copied through as an object',
+  Object.values(objectModels.modelUsage).every((v) => typeof v === 'number')
+);
+
 eq('bar renders a full bar at 100%', usage.bar(100, 10), '█'.repeat(10));
 eq('bar renders an empty bar at 0%', usage.bar(0, 10), '░'.repeat(10));
 eq('bar clamps above 100%', usage.bar(500, 10), '█'.repeat(10));
@@ -472,6 +487,18 @@ check('switch rejects an unknown account', unknownThrew);
 
 eq('resolveAccountName derives from the email', commands.resolveAccountName(BETA), 'beta');
 check('isActive is true for the switched account', accounts.isActive('alpha'));
+
+const twin = makeAuth({
+  email: 'twin@example.com',
+  accountId: 'acct-alpha',
+  name: 'Twin Person',
+  plan: 'team',
+});
+accounts.writeAccount('twin', twin);
+check('shared account id does not mark a different email active', !accounts.isActive('twin'));
+check('sameAccount matches the live email', accounts.sameAccount(accounts.readLiveAuth(), ALPHA));
+check('sameAccount rejects a different email on the same account id', !accounts.sameAccount(ALPHA, twin));
+accounts.deleteAccount('twin');
 
 accounts.deleteAccount('custom_name');
 check('deleteAccount removes the file', !fs.existsSync(path.join(accountsDir, 'custom_name_auth.json')));

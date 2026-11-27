@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace MultiCodexStateGui.Models;
@@ -48,8 +49,48 @@ public class UsageInfo
     [JsonPropertyName("resetCredits")]
     public double? ResetCredits { get; set; }
 
+    /// <summary>
+    /// Numeric per-model percents only. A nested object (the current Codex
+    /// shape) must not fail the whole document, or the rate-limit windows
+    /// disappear with it.
+    /// </summary>
     [JsonPropertyName("modelUsage")]
+    [JsonConverter(typeof(NumericMapConverter))]
     public Dictionary<string, double>? ModelUsage { get; set; }
+}
+
+/// <summary>Reads a JSON object, keeping number values and skipping the rest.</summary>
+public sealed class NumericMapConverter : JsonConverter<Dictionary<string, double>>
+{
+    public override Dictionary<string, double> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var result = new Dictionary<string, double>();
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            reader.Skip();
+            return result;
+        }
+
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        {
+            var key = reader.GetString() ?? "";
+            if (!reader.Read()) break;
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out var number))
+                result[key] = number;
+            else
+                reader.Skip();
+        }
+
+        return result;
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dictionary<string, double> value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        foreach (var (key, number) in value)
+            writer.WriteNumber(key, number);
+        writer.WriteEndObject();
+    }
 }
 
 /// <summary>One rate-limit window: a 5h, a weekly, a monthly, or a raw hour count.</summary>

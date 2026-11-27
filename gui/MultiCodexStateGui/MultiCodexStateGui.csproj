@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+    <!-- This machine has the .NET 10 runtime. Roll forward so the macOS
+         app host runs without a separate .NET 8 install. -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>

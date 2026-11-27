@@ -8,7 +8,7 @@ import {
   displayName,
   emailOf,
   planTypeOf,
-  identityOf,
+  sameAccount,
   humanExpiry,
   updateAccountTokens,
 } from './accounts.js';
@@ -172,7 +172,6 @@ async function cmdList(argv) {
   const live = !json && Boolean(argv.includes('--usage') || argv.includes('-u'));
   const accounts = listAccounts();
   const liveAuth = readLiveAuth();
-  const liveId = liveAuth ? identityOf(liveAuth) : null;
 
   if (json) {
     writeJson(
@@ -183,7 +182,7 @@ async function cmdList(argv) {
         plan: a.plan,
         status: a.status,
         expiresAt: a.expiresAt,
-        isActive: Boolean(liveId && a.auth && identityOf(a.auth) === liveId),
+        isActive: Boolean(liveAuth && a.auth && sameAccount(liveAuth, a.auth)),
         error: a.error || null,
       }))
     );
@@ -212,7 +211,7 @@ async function cmdList(argv) {
   console.log(rule());
 
   for (const [i, a] of accounts.entries()) {
-    const active = liveId && a.auth && identityOf(a.auth) === liveId;
+    const active = liveAuth && a.auth && sameAccount(liveAuth, a.auth);
     const marker = active ? chalk.green('▶') : chalk.gray(' ');
     const name = padVisible(active ? chalk.green.bold(a.name) : chalk.white(a.name), 16);
     const label = accountLabel(a);

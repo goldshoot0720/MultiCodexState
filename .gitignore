@@ -6,6 +6,7 @@ Thumbs.db
 # .NET / Avalonia GUI build output
 gui/**/bin/
 gui/**/obj/
+gui/MultiCodexState.app/
 gui/**/*.user
 
 # Never commit credentials

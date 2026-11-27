@@ -99,6 +99,22 @@ export function identityOf(auth) {
   return accountIdOf(auth) || emailOf(auth) || 'unknown';
 }
 
+/**
+ * Whether two auth payloads are the same login.
+ *
+ * `account_id` is the ChatGPT workspace. On a team plan every member shares
+ * it, so it cannot by itself decide which archive is the live session.
+ * Email distinguishes those logins. Account id is only the fallback when an
+ * email is missing.
+ */
+export function sameAccount(a, b) {
+  if (!a || !b) return false;
+  const emailA = emailOf(a);
+  const emailB = emailOf(b);
+  if (emailA && emailB) return emailA.toLowerCase() === emailB.toLowerCase();
+  return identityOf(a) === identityOf(b);
+}
+
 /** Best-effort human name (Google profile name, else the email local part). */
 export function displayName(auth) {
   const claims = claimsOf(auth);
@@ -225,7 +241,7 @@ export function isActive(name) {
   const live = readLiveAuth();
   const acc = readAccount(name);
   if (!live || !acc) return false;
-  return identityOf(live) === identityOf(acc.auth);
+  return sameAccount(live, acc.auth);
 }
 
 export { authJsonPath, accountsDir, accountFilePath };

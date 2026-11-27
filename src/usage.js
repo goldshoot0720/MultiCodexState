@@ -183,8 +183,22 @@ export function parseUsage(body) {
       approxLocalMessages: asFinite(credits.approx_local_messages),
     },
     resetCredits: asFinite(body.rate_limit_reset_credits?.available_count),
-    modelUsage: body.model_usage && typeof body.model_usage === 'object' ? body.model_usage : {},
+    // The GUI deserialises this as a map of numbers. Codex now sends a nested
+    // object per model (`{ available, available_at }`). Copying that through
+    // makes the whole usage document fail to parse, so the 5h window vanishes.
+    modelUsage: numericModelUsage(body.model_usage),
   };
+}
+
+/** Keep only numeric per-model readings. Nested objects are dropped. */
+function numericModelUsage(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const n = asFinite(value);
+    if (n != null) out[key] = n;
+  }
+  return out;
 }
 
 /**

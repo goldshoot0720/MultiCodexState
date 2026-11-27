@@ -71,6 +71,7 @@ public partial class AccountViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CreditsText))]
+    [NotifyPropertyChangedFor(nameof(HasCredits))]
     private double? _resetCredits;
 
     [ObservableProperty]

@@ -79,6 +79,7 @@ public partial class MainViewModel : ViewModelBase
             StatusText = $"Loaded {Accounts.Count} accounts - fetching usage...";
 
             // One CLI call for all accounts; awaits without blocking the UI thread.
+            string? usageError = null;
             try
             {
                 var usages = await _cli.GetUsageAsync();
@@ -94,17 +95,20 @@ public partial class MainViewModel : ViewModelBase
                         vm.ApplyUsage(u);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Accounts loaded fine; usage fetch failed - keep the partial result.
+                // Accounts loaded fine; usage fetch failed - keep the partial result
+                // and say so. Swallowing this used to leave a Ready status with no bars.
                 foreach (var vm in Accounts)
                     vm.IsLoading = false;
+                usageError = ex.Message.Split('\n', 2)[0].Trim();
             }
 
             var active = Accounts.FirstOrDefault(a => a.IsActive);
-            StatusText = active != null
+            var ready = active != null
                 ? $"Ready - {Accounts.Count} accounts - Active: {active.Name}"
                 : $"Ready - {Accounts.Count} accounts";
+            StatusText = usageError != null ? $"{ready} - usage unavailable: {usageError}" : ready;
         }
         catch (Exception ex)
         {
