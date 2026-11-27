@@ -122,15 +122,17 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
-                                        <!-- credits / reset credits -->
-                                        <TextBlock Text="{Binding CreditsText}" FontSize="11"
-                                                   IsVisible="{Binding HasCredits}"
-                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-
-                                        <!-- rate limit hit -->
-                                        <TextBlock Text="rate limit reached" FontSize="11"
-                                                   IsVisible="{Binding HasLimitReached}"
-                                                   Foreground="#EF4444" />
+                                        <!-- credits and the rate-limit flag share one line;
+                                             a hidden one leaves no gap, so a card with only
+                                             reset credits does not get an empty row -->
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <TextBlock Text="{Binding CreditsText}" FontSize="11"
+                                                       IsVisible="{Binding HasCredits}"
+                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                            <TextBlock Text="rate limit reached" FontSize="11"
+                                                       IsVisible="{Binding HasLimitReached}"
+                                                       Foreground="#EF4444" />
+                                        </StackPanel>
 
                                         <!-- no-cap note -->
                                         <TextBlock Text="{Binding UsageNote}" FontSize="11"
