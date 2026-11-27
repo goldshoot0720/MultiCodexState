@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using MultiCodexStateGui.Services;
 using MultiCodexStateGui.ViewModels;
 using MultiCodexStateGui.Views;
 
@@ -17,6 +18,8 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            if (OperatingSystem.IsMacOS()) MacDockIcon.Apply();
+
             desktop.MainWindow = new MainWindow
             {
                 DataContext = new MainViewModel(),

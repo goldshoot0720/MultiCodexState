@@ -426,7 +426,7 @@ there is exactly one source of truth for auth and quota logic.
 
 ### Run it
 
-On Apple Silicon Macs, the release also includes a zipped single-file GUI. Install the CLI using the instructions above, then unzip the executable and open it. The GUI uses the same local archives as the CLI.
+On Apple Silicon Macs, the release also includes a zipped single-file GUI. Install the CLI using the instructions above, then unzip the executable and open it. The GUI uses the same local archives as the CLI. To build that ZIP on macOS, run `gui/macos/package-single.sh /tmp/multicodexstate-release` from the checkout.
 
 ```cmd
 gui\run.cmd
@@ -442,7 +442,7 @@ dotnet build -c Release
 
 ### What it does
 
-- The overview shows the active local account, archive count, quota and reset credits. Search, filter or sort the account list. Change the single accent under **More → Accent color**.
+- The overview shows the active local account, archive count, every quota window reported for that account (including weekly usage), and reset credits. Search, filter or sort the account list. Change the single accent under **More → Accent color**.
 - Lists every archived account with its plan, token status and live quota.
 - Draws one bar per rate-limit window, all on a single row. The card is
   deliberately **plan-agnostic**: plus/pro accounts show a `5h` and a `weekly`

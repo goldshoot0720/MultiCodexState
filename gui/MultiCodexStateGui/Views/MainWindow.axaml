@@ -9,8 +9,7 @@
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Border x:Name="MacTrafficLightSpacer" Width="0" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="9">
-                    <Path Data="M2 3 L8 9 2 15 M11 15 H20" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"
-                          Width="21" Height="17" VerticalAlignment="Center" />
+                    <Image Source="/Assets/app-icon.png" Width="25" Height="25" VerticalAlignment="Center" />
                     <TextBlock Text="MultiCodexState" FontSize="15" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Spacing="6" Orientation="Horizontal">
@@ -37,7 +36,7 @@
         <Panel Grid.Row="1">
             <ScrollViewer IsVisible="{Binding !IsEmpty}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="24,22" MaxWidth="1200" Spacing="18">
-                    <Grid ColumnDefinitions="1.6*,*,*,*" ColumnSpacing="18">
+                    <Grid ColumnDefinitions="1.35*,0.75*,2.2*,0.8*" ColumnSpacing="18">
                         <StackPanel Spacing="4">
                             <TextBlock Text="Current account" Classes="meta" />
                             <TextBlock Classes="heading" Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis"
@@ -49,11 +48,25 @@
                             <TextBlock Classes="heading" Text="{Binding TotalCount}" />
                             <TextBlock Classes="meta"><Run Text="{Binding HealthyCount}"/><Run Text=" valid" /></TextBlock>
                         </StackPanel>
-                        <StackPanel Grid.Column="2" Spacing="4">
-                            <TextBlock Classes="meta"><Run Text="{Binding ActivePrimaryLabel}"/><Run Text=" usage" /></TextBlock>
-                            <TextBlock Classes="heading" Text="{Binding ActivePrimaryPercentText}" />
-                            <TextBlock Classes="meta" Text="{Binding ActivePrimaryRemainingText}" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <Panel Grid.Column="2">
+                            <ItemsControl ItemsSource="{Binding ActiveAccount.Windows}" IsVisible="{Binding ActiveAccount.HasWindows, FallbackValue=False}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" ColumnSpacing="14" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="vm:WindowViewModel">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Classes="meta"><Run Text="{Binding Label}" /><Run Text=" usage" /></TextBlock>
+                                            <TextBlock Classes="heading" Text="{Binding PercentText}" />
+                                            <TextBlock Classes="meta" Text="{Binding RemainingText}" IsVisible="{Binding HasRemaining}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel IsVisible="{Binding !ActiveAccount.HasWindows, FallbackValue=True}" Spacing="4">
+                                <TextBlock Text="Current usage" Classes="meta" />
+                                <TextBlock Text="—" Classes="heading" />
+                                <TextBlock Classes="meta" Text="{Binding QuotaPlaceholder}" />
+                            </StackPanel>
+                        </Panel>
                         <StackPanel Grid.Column="3" Spacing="4">
                             <TextBlock Text="Reset credits" Classes="meta" />
                             <TextBlock Classes="heading" Text="{Binding TotalResetCreditsText}" />

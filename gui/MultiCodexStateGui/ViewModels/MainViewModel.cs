@@ -72,13 +72,7 @@ public partial class MainViewModel : ViewModelBase
     private AccountViewModel? _activeAccount;
 
     [ObservableProperty]
-    private string _activePrimaryPercentText = "\u2014";
-
-    [ObservableProperty]
-    private string _activePrimaryLabel = "Current";
-
-    [ObservableProperty]
-    private string _activePrimaryRemainingText = "No active window";
+    private string _quotaPlaceholder = "No active session";
 
     [ObservableProperty]
     private string _totalResetCreditsText = "\u2014";
@@ -420,30 +414,13 @@ public partial class MainViewModel : ViewModelBase
         HealthyCount = Accounts.Count(a => a.IsHealthy);
         AlertCount = Accounts.Count(a => a.IsWarningOrExpired);
 
-        var active = Accounts.FirstOrDefault(a => a.IsActive);
-        ActiveAccount = active;
-
-        var primaryWindow = active?.Windows.FirstOrDefault();
-        if (primaryWindow != null)
+        ActiveAccount = Accounts.FirstOrDefault(a => a.IsActive);
+        QuotaPlaceholder = ActiveAccount switch
         {
-            ActivePrimaryPercentText = primaryWindow.PercentText;
-            ActivePrimaryLabel = primaryWindow.Label;
-            ActivePrimaryRemainingText = primaryWindow.HasRemaining
-                ? primaryWindow.RemainingText
-                : "Remaining quota unavailable";
-        }
-        else if (active != null && active.IsLoading)
-        {
-            ActivePrimaryPercentText = "...";
-            ActivePrimaryLabel = "Current";
-            ActivePrimaryRemainingText = "Fetching live quota";
-        }
-        else
-        {
-            ActivePrimaryPercentText = "\u2014";
-            ActivePrimaryLabel = "Current";
-            ActivePrimaryRemainingText = active == null ? "No active session" : "No window data";
-        }
+            null => "No active session",
+            { IsLoading: true } => "Fetching quota…",
+            _ => "No window data"
+        };
 
         var creditAccounts = Accounts.Where(a => a.ResetCredits.HasValue).ToList();
         if (creditAccounts.Count > 0)
