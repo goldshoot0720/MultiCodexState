@@ -229,19 +229,25 @@ async function cmdList(argv) {
   console.log(chalk.gray(`  live: ${authJsonPath()}`));
   console.log();
 
-  if (live) await printUsageTable(accounts);
+  if (live) await printUsageTable(accounts, liveAuth);
 }
 
-async function printUsageTable(accounts) {
+async function printUsageTable(accounts, liveAuth) {
   console.log(rule('live usage'));
   const gutter = Math.max(16, ...accounts.map((a) => a.name.length + 2));
-  const indent = ' '.repeat(2 + gutter);
+  // Two extra cells for the ▶ marker, so the bars and reset lines still line
+  // up under the names instead of shifting when the marker appears.
+  const indent = ' '.repeat(4 + gutter);
   for (const a of accounts) {
+    // Same marker as the table above: the live account is the one whose quota
+    // you are actually burning, and the two halves of the output must agree.
+    const active = Boolean(liveAuth && a.auth && sameAccount(liveAuth, a.auth));
+    const marker = active ? chalk.green('▶') : ' ';
     if (!a.auth) {
-      console.log(`  ${chalk.gray(a.name.padEnd(gutter))}${chalk.red('no credential')}`);
+      console.log(`  ${marker} ${chalk.gray(a.name.padEnd(gutter))}${chalk.red('no credential')}`);
       continue;
     }
-    console.log(`  ${chalk.bold.white(a.name.padEnd(gutter))}${chalk.gray(a.email || '')}`);
+    console.log(`  ${marker} ${chalk.bold.white(a.name.padEnd(gutter))}${chalk.gray(a.email || '')}`);
     try {
       const u = await fetchUsage(a.auth, {
         onTokenRefreshed: (tokens) => updateAccountTokens(a.name, tokens),
@@ -333,6 +339,7 @@ async function cmdUsage(argv) {
   const only = argv.filter((a) => !a.startsWith('-'));
   const all = listAccounts();
   const accounts = only.length ? all.filter((a) => only.includes(a.name)) : all;
+  const liveAuth = readLiveAuth();
 
   if (json) {
     writeJson(await usageRows(accounts));
@@ -351,11 +358,17 @@ async function cmdUsage(argv) {
   console.log(rule());
 
   for (const a of accounts) {
+    // Mark the live account, exactly like `list` and `list --usage` do: the
+    // quota below belongs to whichever archive is currently copied into
+    // ~/.codex/auth.json, and on a team plan the shared account_id cannot tell
+    // them apart — sameAccount() compares the email.
+    const active = Boolean(liveAuth && a.auth && sameAccount(liveAuth, a.auth));
+    const marker = active ? chalk.green('▶') : ' ';
     if (!a.auth) {
-      console.log(`  ${chalk.white(a.name)} ${chalk.red('— no credential')}`);
+      console.log(`  ${marker} ${chalk.white(a.name)} ${chalk.red('— no credential')}`);
       continue;
     }
-    console.log(`  ${chalk.bold.white(a.name)} ${chalk.gray(a.email || '')}`);
+    console.log(`  ${marker} ${chalk.bold.white(a.name)} ${chalk.gray(a.email || '')}`);
     try {
       const u = await fetchUsage(a.auth, {
         onTokenRefreshed: (tokens) => updateAccountTokens(a.name, tokens),

@@ -718,10 +718,15 @@ const limits = mock.usagePayload.rate_limit;
 const compact = await runTestCli(['list', '--usage']);
 eq('list --usage exits 0', compact.code, 0);
 const lines = compact.out.replace(/\u001b\[[0-9;]*m/g, '').split('\n').map((line) => line.trim());
+// The live account now carries the same ▶ marker here as in the table above,
+// so look rows up without it — the assertions are about the row's contents.
+const plain = lines.map((line) => line.replace(/^▶\s+/, ''));
 const shortReset = usage.formatResetTime(limits.secondary_window.reset_at, { withYear: true });
 const weekReset = usage.formatResetTime(limits.primary_window.reset_at, { withYear: true });
+const headers = {};
 for (const name of ['alpha', 'beta']) {
-  const header = lines.indexOf(`${name.padEnd(16)}${name}@example.com`);
+  const header = plain.indexOf(`${name.padEnd(16)}${name}@example.com`);
+  headers[name] = header;
   check(`${name} shows 5h usage and its reset first`,
     header >= 0 && /42\.5%\s+\[5h\]$/.test(lines[header + 1])
     && lines[header + 2]?.startsWith(`Resets: ${shortReset}`));
@@ -730,6 +735,15 @@ for (const name of ['alpha', 'beta']) {
     && lines[header + 4]?.startsWith(`Resets: ${weekReset}`));
   eq(`${name} shows credits below both windows`, lines[header + 5], '1 reset credit(s)');
 }
+
+// alpha is the live archive (switchTo('alpha') above), so it — and only it —
+// must be marked in the usage section, matching the account table.
+check(
+  'the live account is marked in the usage section',
+  headers.alpha >= 0 && lines[headers.alpha]?.startsWith('▶ alpha')
+    && headers.beta >= 0 && !lines[headers.beta]?.startsWith('▶'),
+  `${lines[headers.alpha]} | ${lines[headers.beta]}`
+);
 
 // The reset line is the one place a user can read an absolute rollover time,
 // so it must carry the full date *and* the year — "November 30" alone is
