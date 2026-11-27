@@ -98,6 +98,8 @@ Node.js ESM + chalk ^5，無其他依賴。
 - **`windows` 是可變長度陣列，不是固定的 weekly/monthly 兩個欄位。**
   plus/pro = 5h + weekly 兩列；free = 只有一列 30 天（`secondary_window: null`）。
 - GUI 用 `ItemsControl` 綁 `Windows` 集合，**列數由 payload 決定**，卡片不假設有幾列。
+- 版面是**同一列橫排**：`UniformGrid Rows="1"`（**不要寫死 `Columns="2"`**，
+  否則免費方案的單一 monthly 只佔左半邊）。
 - 「完全沒有 window」≠ 真的 0%：`noCapReported: true` 時畫 0% 但顯示說明文字。
 - 測試第 11 節有專門斷言：free 方案只有 1 個 window 且 label = `monthly`；
   windowless payload → `noCapReported: true` 且 `windows.length === 0`。
