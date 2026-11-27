@@ -124,9 +124,15 @@ function rule(label) {
 }
 
 /**
- * "Resets: October 18, 21:37 (in 6d 3h)" — the full reset line.
+ * "Resets: October 18, 21:37, 2026 (in 6d 3h)" — the full reset line.
+ *
+ * The absolute date always carries the year, because a weekly window can roll
+ * over into the next month and "October 18" alone stops being unambiguous.
  * Colour shifts to yellow/red as the reset approaches, so an imminent
  * rollover is obvious at a glance.
+ *
+ * `WindowViewModel.ResetText` in the GUI builds the same string from the same
+ * epoch-ms value — keep the two in step.
  */
 function resetLine(value, { label = 'Resets' } = {}) {
   if (parseInstant(value) == null) return null;

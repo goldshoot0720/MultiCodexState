@@ -1,4 +1,4 @@
-using System.Text;
+using System.Globalization;
 using Avalonia.Media;
 using MultiCodexStateGui.Models;
 
@@ -71,29 +71,35 @@ public class WindowViewModel
     public bool HasRemaining => RemainingPercent.HasValue;
 
     /// <summary>
-    /// "Resets: Oct 18, 21:37 (in 6d 3h)" — built from epoch milliseconds,
-    /// which is what the CLI normalises every representation into.
+    /// "Resets: October 18, 21:37, 2026 (in 6d 3h)" — the same string the CLI
+    /// prints, built from epoch milliseconds (what the CLI normalises every
+    /// representation into). The year is always included: a weekly window can
+    /// roll over into next month, and "Nov 30" alone is ambiguous once it does.
     /// </summary>
     public string ResetText
     {
         get
         {
             if (ResetAt == null) return string.Empty;
+
             var local = DateTimeOffset.FromUnixTimeMilliseconds(ResetAt.Value).ToLocalTime();
+            // InvariantCulture: the month must read "October" on every machine,
+            // matching MONTH_NAMES in src/usage.js, not the OS locale.
+            var when = $"{local.ToString("MMMM d, HH:mm", CultureInfo.InvariantCulture)}, {local.Year}";
+
             var remaining = local - DateTimeOffset.Now;
-            if (remaining <= TimeSpan.Zero) return "Resets now";
+            if (remaining <= TimeSpan.Zero) return $"Resets: {when} (imminent)";
 
-            var sb = new StringBuilder("Resets: ");
-            sb.Append(local.ToString("MMM d, HH:mm"));
+            // Same shape as formatCountdown() in src/usage.js: the largest unit
+            // plus the next one down, floored so the two never disagree.
+            var days = (int)remaining.TotalDays;
+            var countdown = days > 0
+                ? $"{days}d {remaining.Hours}h"
+                : remaining.Hours > 0
+                    ? $"{remaining.Hours}h {remaining.Minutes}m"
+                    : $"{remaining.Minutes}m";
 
-            if (remaining.TotalDays >= 1)
-                sb.Append($" (in {(int)remaining.TotalDays}d {remaining.Hours}h)");
-            else if (remaining.TotalHours >= 1)
-                sb.Append($" (in {remaining.Hours}h {remaining.Minutes}m)");
-            else
-                sb.Append($" (in {remaining.Minutes}m)");
-
-            return sb.ToString();
+            return $"Resets: {when} (in {countdown})";
         }
     }
 

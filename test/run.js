@@ -731,6 +731,18 @@ for (const name of ['alpha', 'beta']) {
   eq(`${name} shows credits below both windows`, lines[header + 5], '1 reset credit(s)');
 }
 
+// The reset line is the one place a user can read an absolute rollover time,
+// so it must carry the full date *and* the year — "November 30" alone is
+// ambiguous once a weekly window crosses into the next month. The GUI builds
+// the same string in WindowViewModel.ResetText; this pins the CLI half.
+const resetLines = lines.filter((line) => line.startsWith('Resets: '));
+check(
+  'every reset line carries the date, time and year',
+  resetLines.length === 4
+    && resetLines.every((line) => /^Resets: [A-Z][a-z]+ \d{1,2}, \d{2}:\d{2}, \d{4} \(in .+\)$/.test(line)),
+  resetLines.join(' | ')
+);
+
 limits.primary_window = limits.secondary_window;
 limits.secondary_window = null;
 const shortOnly = await runTestCli(['list', '-u']);
