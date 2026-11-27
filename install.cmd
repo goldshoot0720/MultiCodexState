@@ -116,6 +116,24 @@ if not exist "!INSTALL_DIR!\package.json" (
     echo   [ok] source downloaded
 )
 
+REM --- Version ---------------------------------------------------------
+
+REM Same line install.sh prints: the semver from package.json plus the commit
+REM date, because main moves without bumping the version - two checkouts of
+REM the same version from different commits must still be distinguishable.
+set "VERSION="
+set "VERSION_DATE="
+set "VERSION_SHA="
+set "PJ=!INSTALL_DIR:\=/!/package.json"
+for /f "usebackq tokens=*" %%v in (`node -p "require('!PJ!').version" 2^>nul`) do set "VERSION=%%v"
+if not defined VERSION set "VERSION=unknown"
+for /f "usebackq tokens=*" %%d in (`git -C "!INSTALL_DIR!" log -1 --format=%%cs 2^>nul`) do set "VERSION_DATE=%%d"
+for /f "usebackq tokens=*" %%s in (`git -C "!INSTALL_DIR!" rev-parse --short HEAD 2^>nul`) do set "VERSION_SHA=%%s"
+set "VERSION_LINE=!VERSION!"
+if defined VERSION_DATE set "VERSION_LINE=!VERSION_LINE! (!VERSION_DATE!)"
+if defined VERSION_SHA set "VERSION_LINE=!VERSION_LINE!, !VERSION_SHA!"
+echo   [ok] version !VERSION_LINE!
+
 REM --- Dependencies ----------------------------------------------------
 
 echo   Installing dependencies ^(chalk^)...
@@ -164,6 +182,7 @@ echo     MultiCodexState              # show help
 echo     MultiCodexState login work   # sign in and archive the account
 echo     MultiCodexState list --usage # accounts + live quota
 echo.
+echo   Version     : !VERSION_LINE!
 echo   Install dir : !INSTALL_DIR!
 echo   Account dir : !CODEX_HOME_DIR!\accounts
 

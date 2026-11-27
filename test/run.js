@@ -749,6 +749,28 @@ const shortOnly = await runTestCli(['list', '-u']);
 check('list -u only shows reported windows', shortOnly.out.includes('[5h]') && !shortOnly.out.includes('[weekly]'));
 
 /* ------------------------------------------------------------------ */
+/* 13. installers report the version                                   */
+/* ------------------------------------------------------------------ */
+
+section('13. installers report the version');
+
+// All three installers must print "1.1.1 (2026-11-27), 4a215c3"-style version
+// lines: the semver from package.json plus the commit date and short SHA.
+// `main` moves without bumping package.json, so the date is what tells two
+// installs of the same version apart in a bug report. Keep the three in step.
+const installerExpectations = [
+  ['install.sh', 'ok "version $VERSION_LINE"', 'dim "  Version     : $VERSION_LINE"'],
+  ['install.ps1', 'Write-Ok "version $versionLine"', 'Write-Host "  Version     : $versionLine"'],
+  ['install.cmd', 'echo   [ok] version !VERSION_LINE!', 'echo   Version     : !VERSION_LINE!'],
+];
+for (const [file, progressLine, summaryLine] of installerExpectations) {
+  const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  check(`${file} prints the version while installing`, text.includes(progressLine));
+  check(`${file} repeats the version in the summary`, text.includes(summaryLine));
+  check(`${file} derives the date from the commit`, text.includes('%cs'));
+}
+
+/* ------------------------------------------------------------------ */
 /* Summary                                                             */
 /* ------------------------------------------------------------------ */
 

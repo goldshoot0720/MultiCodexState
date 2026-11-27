@@ -188,6 +188,32 @@ if (-not (Test-Path (Join-Path $InstallDir "package.json"))) {
     Write-Ok "source downloaded"
 }
 
+# --- 2b. Version -------------------------------------------------------
+
+# Same line install.sh prints: the semver from package.json plus the commit
+# date, because `main` moves without bumping the version - two checkouts of
+# "1.1.1" from different commits must still be distinguishable.
+$versionLine = "unknown"
+try {
+    $pkg = Get-Content (Join-Path $InstallDir "package.json") -Raw | ConvertFrom-Json
+    $version = $pkg.version
+    if (-not $version) { $version = "unknown" }
+    $versionLine = $version
+
+    $verDate = Invoke-InstallerNative git @('-C', $InstallDir, 'log', '-1', '--format=%cs')
+    $verSha = Invoke-InstallerNative git @('-C', $InstallDir, 'rev-parse', '--short', 'HEAD')
+    if ($verDate.ExitCode -eq 0) {
+        $dateText = ($verDate.Output -join "").Trim()
+        if ($dateText) { $versionLine = "$versionLine ($dateText)" }
+    }
+    if ($verSha.ExitCode -eq 0) {
+        $shaText = ($verSha.Output -join "").Trim()
+        if ($shaText) { $versionLine = "$versionLine, $shaText" }
+    }
+}
+catch { }
+Write-Ok "version $versionLine"
+
 # --- 3. Install dependencies -------------------------------------------
 
 Write-Step "Installing dependencies (chalk)..."
@@ -290,6 +316,7 @@ Write-Host "    MultiCodexState              # show help" -ForegroundColor Gray
 Write-Host "    MultiCodexState login work   # sign in and archive the account" -ForegroundColor Gray
 Write-Host "    MultiCodexState list --usage # accounts + live quota" -ForegroundColor Gray
 Write-Host ""
+Write-Host "  Version     : $versionLine" -ForegroundColor DarkGray
 Write-Host "  Install dir : $InstallDir" -ForegroundColor DarkGray
 Write-Host "  Account dir : $(Join-Path $codexHome 'accounts')" -ForegroundColor DarkGray
 

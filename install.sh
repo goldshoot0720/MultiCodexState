@@ -328,6 +328,21 @@ fi
 # which updates by fetching an exact SHA and hard-resetting onto FETCH_HEAD -
 # `git pull` would be a silent no-op here).
 
+# --- 4b. Version -----------------------------------------------------------
+
+# Print the version as soon as the checkout exists. It is what people quote in
+# a bug report, and `main` moves without bumping package.json - so the commit
+# date (and the short SHA) is what actually distinguishes two "1.1.1" installs.
+VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$INSTALL_DIR/package.json" 2>/dev/null | head -n 1)"
+VERSION_DATE="$(git -C "$INSTALL_DIR" log -1 --format=%cs 2>/dev/null || true)"
+VERSION_SHA="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+[ -n "$VERSION" ] || VERSION='unknown'
+
+VERSION_LINE="$VERSION"
+if [ -n "$VERSION_DATE" ]; then VERSION_LINE="$VERSION_LINE ($VERSION_DATE)"; fi
+if [ -n "$VERSION_SHA" ]; then VERSION_LINE="$VERSION_LINE, $VERSION_SHA"; fi
+ok "version $VERSION_LINE"
+
 # --- 5. Dependencies -------------------------------------------------------
 
 step "Installing dependencies (chalk)..."
@@ -461,6 +476,7 @@ dim "    MultiCodexState              # show help"
 dim "    MultiCodexState login work   # sign in and archive the account"
 dim "    MultiCodexState list --usage # accounts + live quota"
 printf '\n'
+dim "  Version     : $VERSION_LINE"
 dim "  Install dir : $INSTALL_DIR"
 dim "  Account dir : $CODEX_HOME_DIR/accounts"
 
