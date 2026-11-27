@@ -440,11 +440,12 @@ dotnet build -c Release
 ### What it does
 
 - Lists every archived account with its plan, token status and live quota.
-- Draws one bar per rate-limit window. The card is deliberately **plan-agnostic**:
-  plus/pro accounts show a `5h` and a `weekly` bar, a free account shows the
-  single `monthly` bar it actually reports, and a plan that reports no windows
-  at all renders at 0% with a note rather than looking broken. Nothing assumes
-  a fixed window count.
+- Draws one bar per rate-limit window, all on a single row. The card is
+  deliberately **plan-agnostic**: plus/pro accounts show a `5h` and a `weekly`
+  bar side by side, a free account shows the single `monthly` bar it actually
+  reports at full width, and a plan that reports no windows at all renders at
+  0% with a note rather than looking broken. Nothing assumes a fixed window
+  count. Reset credits and the "rate limit reached" flag share the line below.
 - `Switch` makes an archived account live, `Login` / `Logout` open a real
   terminal window so the browser OAuth flow and any errors stay visible, and
   `Update` / `Check updates` drive the same self-update path as the CLI.
