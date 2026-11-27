@@ -5,14 +5,15 @@ using MultiCodexStateGui.Models;
 namespace MultiCodexStateGui.ViewModels;
 
 /// <summary>
-/// One rate-limit window row (a "5h", a "weekly", a "monthly", …).
+/// One rate-limit window cell (a "5h", a "weekly", a "monthly", …).
 ///
 /// Immutable after construction: the list is rebuilt wholesale on every
 /// refresh, so there is no point carrying change notification here.
 ///
 /// This is the piece that makes the GUI plan-agnostic. Codex ships a 5h + 7d
 /// pair on paid plans but a single 30-day window on free, so the card renders
-/// however many rows the payload actually produced rather than two fixed bars.
+/// however many cells the payload actually produced — side by side on one row,
+/// never two hard-coded bars.
 /// </summary>
 public class WindowViewModel
 {

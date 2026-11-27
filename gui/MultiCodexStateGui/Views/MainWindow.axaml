@@ -8,7 +8,7 @@
         x:DataType="vm:MainViewModel"
         Icon="/Assets/app-icon.png"
         Title="MultiCodexState"
-        Width="920" Height="640"
+        Width="920" Height="900"
         MinWidth="680" MinHeight="440"
         WindowStartupLocation="CenterScreen">
 
@@ -43,7 +43,10 @@
         <!-- ── Body ─────────────────────────────────────────────────── -->
         <Panel Grid.Row="1">
 
-            <ScrollViewer Padding="14">
+            <ScrollViewer Padding="14,14,8,14"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          AllowAutoHide="False">
                 <ItemsControl ItemsSource="{Binding Accounts}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:AccountViewModel">
@@ -79,13 +82,21 @@
                                                        VerticalAlignment="Center" />
                                         </StackPanel>
 
-                                        <!-- rate-limit windows: however many the plan reports
-                                             (5h + weekly on paid, a single monthly on free) -->
+                                        <!-- Every window the plan reports goes on one row:
+                                             paid plans pair 5h + weekly side by side, free
+                                             plans get their single 30-day bar at full width.
+                                             Rows="1" lets UniformGrid derive the column count
+                                             from the item count instead of hard-coding two. -->
                                         <ItemsControl ItemsSource="{Binding Windows}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" ColumnSpacing="16" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="vm:WindowViewModel">
                                                     <StackPanel Spacing="2" Margin="0,0,0,4">
-                                                        <Grid ColumnDefinitions="56,200,Auto,*">
+                                                        <Grid ColumnDefinitions="48,*,52">
                                                             <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11"
                                                                        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                                                                        VerticalAlignment="Center" />
@@ -94,17 +105,17 @@
                                                                          Height="10" VerticalAlignment="Center"
                                                                          Foreground="{Binding BarColor}" />
                                                             <TextBlock Grid.Column="2" Text="{Binding PercentText}"
-                                                                       FontSize="12" Width="56"
-                                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
-                                                            <TextBlock Grid.Column="3" Text="{Binding RemainingText}"
-                                                                       IsVisible="{Binding HasRemaining}"
-                                                                       FontSize="11"
-                                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                                                       VerticalAlignment="Center" />
+                                                                       FontSize="12"
+                                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
                                                         </Grid>
+                                                        <TextBlock Text="{Binding RemainingText}"
+                                                                   IsVisible="{Binding HasRemaining}"
+                                                                   FontSize="11" Margin="48,0,0,0"
+                                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                                                         <TextBlock Text="{Binding ResetText}"
                                                                    IsVisible="{Binding HasReset}"
-                                                                   FontSize="11" Margin="56,0,0,0"
+                                                                   FontSize="11" Margin="48,0,0,0"
+                                                                   TextWrapping="Wrap"
                                                                    Foreground="{Binding ResetColor}" />
                                                     </StackPanel>
                                                 </DataTemplate>

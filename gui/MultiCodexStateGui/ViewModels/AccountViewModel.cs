@@ -43,9 +43,10 @@ public partial class AccountViewModel : ObservableObject
     // ── Rate-limit windows ──────────────────────────────────────────
 
     /// <summary>
-    /// One row per window the payload reported. Empty on the free plan when
-    /// the payload reports nothing, and two rows on plus/pro — the card does
-    /// not care which, it just renders the collection.
+    /// One entry per window the payload reported, laid out side by side on a
+    /// single row. Empty on the free plan when the payload reports nothing,
+    /// two on plus/pro — the card does not care which, it just renders the
+    /// collection and lets the panel derive the column count.
     /// </summary>
     public ObservableCollection<WindowViewModel> Windows { get; } = new();
 
