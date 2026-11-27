@@ -305,10 +305,10 @@ Every window prints when it rolls over, rendered in **your local timezone**:
 ```
   work you@example.com
     plan plus
-    5h      ████░░░░░░░░░░░░░░░░ 20.0%
+    5h      ━━━━──────────────── 20.0%
             80.0% remaining
             Resets: October 18, 21:37, 2026 (in 6d 2h)
-    weekly  ██░░░░░░░░░░░░░░░░░░  6.0%
+    weekly  ━━──────────────────  6.0%
             94.0% remaining
             Resets: November 1, 08:00, 2026 (in 19d 13h)
 ```
@@ -342,6 +342,7 @@ merged back into the stored credential, preserving `account_id`.
 | `CODEX_HOME` | `~/.codex` | Codex CLI home; `auth.json` lives here |
 | `CODEX_STATE_HOME` | `$CODEX_HOME` | Where `accounts/` is stored |
 | `CODEX_BIN` | auto-detected | Path to the `codex` executable |
+| `MULTICODEXSTATE_THEME` | `cyber` | CLI accent palette. Choose `cyber`, `aurora`, `synth`, or `matrix`. |
 | `CODEX_NO_UPDATE_CHECK` | unset | Set to `1` to disable the background update check |
 | `CODEX_USAGE_URL` | Codex backend | Override the usage endpoint (used by the test harness) |
 | `CODEX_REFRESH_TOKEN_URL_OVERRIDE` | `auth.openai.com` | Override the token-refresh endpoint (honoured by the CLI too) |
@@ -425,6 +426,8 @@ there is exactly one source of truth for auth and quota logic.
 
 ### Run it
 
+On Apple Silicon Macs, the release also includes a zipped single-file GUI. Install the CLI using the instructions above, then unzip the executable and open it. The GUI uses the same local archives as the CLI.
+
 ```cmd
 gui\run.cmd
 ```
@@ -439,6 +442,7 @@ dotnet build -c Release
 
 ### What it does
 
+- The overview shows the active local account, archive count, quota and reset credits. Search, filter or sort the account list. Change the single accent under **More → Accent color**.
 - Lists every archived account with its plan, token status and live quota.
 - Draws one bar per rate-limit window, all on a single row. The card is
   deliberately **plan-agnostic**: plus/pro accounts show a `5h` and a `weekly`
@@ -446,9 +450,7 @@ dotnet build -c Release
   reports at full width, and a plan that reports no windows at all renders at
   0% with a note rather than looking broken. Nothing assumes a fixed window
   count. Reset credits and the "rate limit reached" flag share the line below.
-- `Switch` makes an archived account live, `Login` / `Logout` open a real
-  terminal window so the browser OAuth flow and any errors stay visible, and
-  `Update` / `Check updates` drive the same self-update path as the CLI.
+- **Switch** activates an archived account. **Sign in** starts Codex login. **More** contains sign-out and update actions. **Paths** shows the credential, archive and executable paths used by the CLI.
 
 ### Machine-readable output
 

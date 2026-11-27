@@ -12,3 +12,6 @@ gui/**/*.user
 # Never commit credentials
 *_auth.json
 auth.json
+
+# Local .NET tooling cache
+/.local/share/NuGet/

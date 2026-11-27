@@ -112,6 +112,12 @@ public class CliService
         return JsonSerializer.Deserialize<List<UsageInfo>>(json, JsonOpts) ?? new();
     }
 
+    public async Task<WhereInfo?> GetWhereAsync()
+    {
+        var json = await RunCapturedAsync("where --json");
+        return JsonSerializer.Deserialize<WhereInfo>(json, JsonOpts);
+    }
+
     public async Task SwitchAsync(string name)
     {
         await RunCapturedAsync($"switch \"{name}\"");

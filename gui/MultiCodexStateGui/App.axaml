@@ -1,16 +1,76 @@
-<Application xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="MultiCodexStateGui.App"
-             xmlns:local="using:MultiCodexStateGui"
-             Name="MultiCodexState"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-
-    <Application.DataTemplates>
-        <local:ViewLocator />
-    </Application.DataTemplates>
-
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:MultiCodexStateGui" x:Class="MultiCodexStateGui.App"
+             Name="MultiCodexState" RequestedThemeVariant="Dark">
+    <Application.DataTemplates><local:ViewLocator /></Application.DataTemplates>
+    <Application.Resources>
+        <SolidColorBrush x:Key="CanvasBrush" Color="#13171B" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#1B2025" />
+        <SolidColorBrush x:Key="RaisedBrush" Color="#262D33" />
+        <SolidColorBrush x:Key="LineBrush" Color="#394249" />
+        <SolidColorBrush x:Key="TextBrush" Color="#EDF1F3" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#A4AFB7" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#80BDCF" />
+        <SolidColorBrush x:Key="WarningBrush" Color="#D8B678" />
+        <SolidColorBrush x:Key="ErrorBrush" Color="#E29A96" />
+    </Application.Resources>
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{StaticResource CanvasBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="TextBlock.meta">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.heading">
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Padding" Value="11,5" />
+            <Setter Property="MinHeight" Value="30" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource CanvasBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.quiet">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style Selector="Button.selected">
+            <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.panel">
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+        <Style Selector="ProgressBar">
+            <Setter Property="Height" Value="4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Background" Value="{StaticResource LineBrush}" />
+        </Style>
+        <Style Selector="ProgressBar.warning"><Setter Property="Foreground" Value="{StaticResource WarningBrush}" /></Style>
+        <Style Selector="ProgressBar.critical"><Setter Property="Foreground" Value="{StaticResource ErrorBrush}" /></Style>
+        <Style Selector="TextBlock.warning"><Setter Property="Foreground" Value="{StaticResource WarningBrush}" /></Style>
+        <Style Selector="TextBlock.error"><Setter Property="Foreground" Value="{StaticResource ErrorBrush}" /></Style>
     </Application.Styles>
 </Application>

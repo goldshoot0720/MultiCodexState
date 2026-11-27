@@ -234,3 +234,16 @@ export async function cachedUpdateNotice({ repo = REPO, branch = BRANCH, ttl = C
 /* ------------------------------------------------------------------ */
 
 export const shortSha = (sha) => (sha ? sha.slice(0, 7) : 'unknown');
+
+/** Read the package version from package.json (cached once per process). */
+let cachedVersion = null;
+export function appVersion() {
+  if (cachedVersion) return cachedVersion;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    cachedVersion = pkg?.version || '0.0.0';
+  } catch {
+    cachedVersion = '0.0.0';
+  }
+  return cachedVersion;
+}

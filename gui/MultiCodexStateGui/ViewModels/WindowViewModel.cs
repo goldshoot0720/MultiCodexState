@@ -17,10 +17,9 @@ namespace MultiCodexStateGui.ViewModels;
 /// </summary>
 public class WindowViewModel
 {
-    private static readonly IBrush BrushGreen = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-    private static readonly IBrush BrushYellow = new SolidColorBrush(Color.FromRgb(0xEA, 0xB3, 0x08));
-    private static readonly IBrush BrushRed = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-    private static readonly IBrush BrushGray = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF));
+    private static readonly IBrush BrushGray = new SolidColorBrush(Color.Parse("#A4AFB7"));
+    private static readonly IBrush BrushYellow = new SolidColorBrush(Color.Parse("#D8B678"));
+    private static readonly IBrush BrushRed = new SolidColorBrush(Color.Parse("#E29A96"));
 
     public WindowViewModel(UsageWindowInfo info, bool noCapReported)
     {
@@ -58,12 +57,9 @@ public class WindowViewModel
 
     public double PercentValue => UsedPercent ?? 0;
 
-    public IBrush BarColor => UsedPercent switch
-    {
-        >= 90 => BrushRed,
-        >= 70 => BrushYellow,
-        _ => BrushGreen,
-    };
+    public bool IsElevated => UsedPercent is >= 70 and < 90;
+
+    public bool IsCritical => UsedPercent >= 90;
 
     public string RemainingText =>
         RemainingPercent.HasValue ? $"{RemainingPercent.Value:F1}% remaining" : string.Empty;

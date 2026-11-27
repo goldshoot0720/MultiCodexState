@@ -12,6 +12,6 @@ runCli(process.argv.slice(2))
     }, 60).unref();
   })
   .catch((err) => {
-    console.error(chalk.red(`\n  ✖ ${err.message}\n`));
+    console.error(chalk.red(`Error: ${err.message}`));
     process.exitCode = 1;
   });

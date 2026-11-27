@@ -168,6 +168,7 @@ const accounts = await import('../src/accounts.js');
 const commands = await import('../src/commands.js');
 const paths = await import('../src/paths.js');
 const version = await import('../src/version.js');
+const ui = await import('../src/ui.js');
 
 /* ------------------------------------------------------------------ */
 /* Fixtures                                                            */
@@ -576,11 +577,11 @@ section('11. --json output');
  * runCli) is deliberate: it is the only way to catch a stray banner or
  * update notice corrupting the document.
  */
-function runTestCli(args) {
+function runTestCli(args, extraEnv = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'multicodexstate.js'), ...args], {
       cwd: ROOT,
-      env: { ...process.env, CODEX_HOME: codexHome, CODEX_NO_UPDATE_CHECK: '1' },
+      env: { ...process.env, CODEX_HOME: codexHome, CODEX_NO_UPDATE_CHECK: '1', ...extraEnv },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';
@@ -718,30 +719,41 @@ const limits = mock.usagePayload.rate_limit;
 const compact = await runTestCli(['list', '--usage']);
 eq('list --usage exits 0', compact.code, 0);
 const lines = compact.out.replace(/\u001b\[[0-9;]*m/g, '').split('\n').map((line) => line.trim());
-// The live account now carries the same ▶ marker here as in the table above,
-// so look rows up without it — the assertions are about the row's contents.
-const plain = lines.map((line) => line.replace(/^▶\s+/, ''));
+const inner = lines.map((line) => line.replace(/^│\s*/, '').replace(/\s*│$/, '').trim());
 const shortReset = usage.formatResetTime(limits.secondary_window.reset_at, { withYear: true });
 const weekReset = usage.formatResetTime(limits.primary_window.reset_at, { withYear: true });
 const headers = {};
 for (const name of ['alpha', 'beta']) {
-  const header = plain.indexOf(`${name.padEnd(16)}${name}@example.com`);
+  const header = lines.findIndex((line) => line.startsWith('╭─') && line.includes(`${name}@example.com`));
   headers[name] = header;
+  const card = inner.slice(header, header + 7);
+  const idx5h = card.findIndex((line) => line.startsWith('[5h]') && line.includes('42.5%'));
+  const idxWeek = card.findIndex((line) => line.startsWith('[weekly]') && line.includes('12.0%'));
+  const idxCred = card.findIndex((line) => line.includes('1 reset credit(s)'));
   check(`${name} shows 5h usage and its reset first`,
-    header >= 0 && /42\.5%\s+\[5h\]$/.test(lines[header + 1])
-    && lines[header + 2]?.startsWith(`Resets: ${shortReset}`));
+    header >= 0 && idx5h > 0
+    && card[idx5h + 1]?.startsWith(`Resets: ${shortReset}`));
   check(`${name} shows weekly usage and its reset next`,
-    header >= 0 && /12\.0%\s+\[weekly\]$/.test(lines[header + 3])
-    && lines[header + 4]?.startsWith(`Resets: ${weekReset}`));
-  eq(`${name} shows credits below both windows`, lines[header + 5], '1 reset credit(s)');
+    header >= 0 && idxWeek > idx5h + 1
+    && card[idxWeek + 1]?.startsWith(`Resets: ${weekReset}`));
+  check(`${name} shows credits below both windows`,
+    idxCred > idxWeek + 1,
+    card.join(' | '));
 }
 
 // alpha is the live archive (switchTo('alpha') above), so it — and only it —
-// must be marked in the usage section, matching the account table.
+// must be marked in both the vault table and the live usage card.
+const alphaTableRow = lines.find((line) => line.startsWith('│') && line.includes('alpha@example.com'));
+const betaTableRow = lines.find((line) => line.startsWith('│') && line.includes('beta@example.com'));
+check(
+  'the live account is marked in the vault table',
+  Boolean(alphaTableRow && /^│\s*▶/.test(alphaTableRow)) && Boolean(betaTableRow && !/^│\s*▶/.test(betaTableRow)),
+  `${alphaTableRow} | ${betaTableRow}`
+);
 check(
   'the live account is marked in the usage section',
-  headers.alpha >= 0 && lines[headers.alpha]?.startsWith('▶ alpha')
-    && headers.beta >= 0 && !lines[headers.beta]?.startsWith('▶'),
+  headers.alpha >= 0 && lines[headers.alpha]?.startsWith('╭─ ▶ alpha') && lines[headers.alpha]?.includes('[ACTIVE]')
+    && headers.beta >= 0 && !lines[headers.beta]?.startsWith('╭─ ▶') && !lines[headers.beta]?.includes('[ACTIVE]'),
   `${lines[headers.alpha]} | ${lines[headers.beta]}`
 );
 
@@ -749,7 +761,7 @@ check(
 // so it must carry the full date *and* the year — "November 30" alone is
 // ambiguous once a weekly window crosses into the next month. The GUI builds
 // the same string in WindowViewModel.ResetText; this pins the CLI half.
-const resetLines = lines.filter((line) => line.startsWith('Resets: '));
+const resetLines = inner.filter((line) => line.startsWith('Resets: '));
 check(
   'every reset line carries the date, time and year',
   resetLines.length === 4
@@ -762,11 +774,52 @@ limits.secondary_window = null;
 const shortOnly = await runTestCli(['list', '-u']);
 check('list -u only shows reported windows', shortOnly.out.includes('[5h]') && !shortOnly.out.includes('[weekly]'));
 
+section('13. UI primitives & styled CLI commands');
+
+eq('displayWidth counts CJK glyphs as 2 cells', ui.displayWidth('鋒兄'), 4);
+eq('displayWidth ignores SGR and truecolor escapes', ui.displayWidth('\u001b[38;2;0;245;212mhi\u001b[0m'), 2);
+check('truncateVisible preserves exact width on CJK text', ui.displayWidth(ui.truncateVisible('鋒兄test帳號', 6)) <= 6);
+eq('suggestCommand matches a close typo', ui.suggestCommand('lsit', ['list', 'usage', 'switch']), 'list');
+eq('suggestCommand ignores an unrelated word', ui.suggestCommand('zzzzzz', ['list', 'usage']), null);
+
+const sampleCard = ui.renderCard({
+  title: '鋒兄',
+  titleRight: 'plus',
+  lines: ['hello world', '---', '中文寬度對齊測試'],
+  width: 60,
+}).split('\n');
+check(
+  'renderCard maintains uniform row display width even with CJK',
+  sampleCard.every((line) => ui.displayWidth(line) === 62),
+  sampleCard.map((l) => `${ui.displayWidth(l)}: ${l}`).join('\n')
+);
+
+const forcedJson = await runTestCli(['list', '--json'], { FORCE_COLOR: '3' });
+check('list --json stays free of ANSI even under FORCE_COLOR=3', !/\u001b\[/.test(forcedJson.out));
+
+const colorUsage = await runTestCli(['usage'], { FORCE_COLOR: '3' });
+eq('usage with FORCE_COLOR=3 exits 0', colorUsage.code, 0);
+check('usage with FORCE_COLOR=3 emits truecolor ANSI', /\u001b\[38;2;/.test(colorUsage.out));
+check('usage labels the quota section', ui.stripAnsi(colorUsage.out).includes('Quota usage'));
+
+const helpRes = await runTestCli(['help'], { FORCE_COLOR: '3' });
+eq('help exits 0', helpRes.code, 0);
+check('help lists the commands under the application name', ui.stripAnsi(helpRes.out).includes('MultiCodexState') && ui.stripAnsi(helpRes.out).includes('login [name]'));
+check('help uses a single accent without background fills', new Set(helpRes.out.match(/38;2;[0-9;]+m/g)).size === 1 && !helpRes.out.includes('48;2;'));
+for (const pct of [0, 50, 100]) {
+  const bar = ui.stripAnsi(ui.paintBar(pct, 10));
+  eq(`a ${pct}% usage bar has the correct fill`, bar, '━'.repeat(pct / 10) + '─'.repeat(10 - pct / 10));
+}
+const synthHelp = await runTestCli(['help'], { MULTICODEXSTATE_THEME: 'synth', FORCE_COLOR: '3' });
+check('the synth option changes the single accent to rose', synthHelp.out.includes('38;2;213;166;175m'));
+const fallbackHelp = await runTestCli(['help'], { MULTICODEXSTATE_THEME: 'missing', FORCE_COLOR: '3' });
+check('an unrecognised accent falls back to blue', fallbackHelp.out.includes('38;2;128;189;207m'));
+
 /* ------------------------------------------------------------------ */
-/* 13. installers report the version                                   */
+/* 14. installers report the version                                   */
 /* ------------------------------------------------------------------ */
 
-section('13. installers report the version');
+section('14. installers report the version');
 
 // All three installers must print "1.1.1 (2026-11-27), 4a215c3"-style version
 // lines: the semver from package.json plus the commit date and short SHA.

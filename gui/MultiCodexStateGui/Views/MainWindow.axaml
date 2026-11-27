@@ -1,202 +1,183 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:MultiCodexStateGui.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="920" d:DesignHeight="640"
-        x:Class="MultiCodexStateGui.Views.MainWindow"
-        x:DataType="vm:MainViewModel"
-        Icon="/Assets/app-icon.png"
-        Title="MultiCodexState"
-        Width="920" Height="900"
-        MinWidth="680" MinHeight="440"
-        WindowStartupLocation="CenterScreen">
-
-    <Design.DataContext>
-        <vm:MainViewModel />
-    </Design.DataContext>
-
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MultiCodexStateGui.ViewModels" x:Class="MultiCodexStateGui.Views.MainWindow"
+        x:DataType="vm:MainViewModel" Title="MultiCodexState" Icon="/Assets/app-icon.png"
+        Width="1000" Height="800" MinWidth="740" MinHeight="500" WindowStartupLocation="CenterScreen"
+        ExtendClientAreaTitleBarHeightHint="52">
     <Grid RowDefinitions="Auto,*,Auto">
-
-        <!-- ── Toolbar ──────────────────────────────────────────────── -->
-        <Border Grid.Row="0" Padding="14,10"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                BorderThickness="0,0,0,1">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Left"
-                           Text="MultiCodexState"
-                           FontSize="16" FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           Margin="4,0,20,0" />
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <Button Content="Login" Command="{Binding LoginCommand}" />
-                    <Button Content="Logout" Command="{Binding LogoutCommand}" />
-                    <Button Content="Refresh" Command="{Binding RefreshCommand}"
-                            IsEnabled="{Binding !IsBusy}" />
-                    <Button Content="Check updates" Command="{Binding CheckUpdateCommand}" />
-                    <Button Content="Update" Command="{Binding UpdateCommand}" />
+        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}"
+                BorderThickness="0,0,0,1" Padding="16,10" PointerPressed="OnHeaderPointerPressed">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border x:Name="MacTrafficLightSpacer" Width="0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="9">
+                    <Path Data="M2 3 L8 9 2 15 M11 15 H20" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"
+                          Width="21" Height="17" VerticalAlignment="Center" />
+                    <TextBlock Text="MultiCodexState" FontSize="15" FontWeight="SemiBold" />
                 </StackPanel>
-            </DockPanel>
+                <StackPanel Grid.Column="2" Spacing="6" Orientation="Horizontal">
+                    <Button Content="Sign in" Classes="primary" Command="{Binding LoginCommand}" />
+                    <Button Content="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="More" AutomationProperties.Name="More actions">
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuItem Header="Sign out" Command="{Binding LogoutCommand}" />
+                                <MenuItem Header="Check for updates" Command="{Binding CheckUpdateCommand}" />
+                                <MenuItem Header="Install update" Command="{Binding UpdateCommand}" IsEnabled="{Binding !IsBusy}" />
+                                <MenuItem Header="Accent color">
+                                    <MenuItem Header="Blue" Command="{Binding SelectThemeCommand}" CommandParameter="cyber" />
+                                    <MenuItem Header="Teal" Command="{Binding SelectThemeCommand}" CommandParameter="aurora" />
+                                    <MenuItem Header="Rose" Command="{Binding SelectThemeCommand}" CommandParameter="synth" />
+                                    <MenuItem Header="Sage" Command="{Binding SelectThemeCommand}" CommandParameter="matrix" />
+                                </MenuItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+            </Grid>
         </Border>
-
-        <!-- ── Body ─────────────────────────────────────────────────── -->
         <Panel Grid.Row="1">
-
-            <ScrollViewer Padding="14,14,8,14"
-                          HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto"
-                          AllowAutoHide="False">
-                <ItemsControl ItemsSource="{Binding Accounts}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:AccountViewModel">
-                            <Border Margin="0,0,0,10" Padding="14" CornerRadius="8"
-                                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-                                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                                    BorderThickness="1">
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-
-                                    <!-- active marker -->
-                                    <TextBlock Grid.Column="0"
-                                               Text="&#x25B6;" FontSize="13" Foreground="#22C55E"
-                                               IsVisible="{Binding IsActive}"
-                                               VerticalAlignment="Center" Margin="0,0,8,0" />
-
-                                    <!-- ── middle column: identity + usage ── -->
-                                    <StackPanel Grid.Column="1" Spacing="5">
-
-                                        <!-- name + plan + email -->
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontWeight="SemiBold" FontSize="14"
-                                                       VerticalAlignment="Center" />
-                                            <Border IsVisible="{Binding HasPlan}"
-                                                    CornerRadius="3" Padding="5,1"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
-                                                <TextBlock Text="{Binding Plan}" FontSize="10"
-                                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                                            </Border>
-                                            <TextBlock Text="{Binding Email}" FontSize="12"
-                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-
-                                        <!-- Every window the plan reports goes on one row:
-                                             paid plans pair 5h + weekly side by side, free
-                                             plans get their single 30-day bar at full width.
-                                             Rows="1" lets UniformGrid derive the column count
-                                             from the item count instead of hard-coding two. -->
-                                        <ItemsControl ItemsSource="{Binding Windows}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <UniformGrid Rows="1" ColumnSpacing="16" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
+            <ScrollViewer IsVisible="{Binding !IsEmpty}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,22" MaxWidth="1200" Spacing="18">
+                    <Grid ColumnDefinitions="1.6*,*,*,*" ColumnSpacing="18">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Current account" Classes="meta" />
+                            <TextBlock Classes="heading" Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis"
+                                       Text="{Binding ActiveAccount.Name, FallbackValue='No active archive', TargetNullValue='No active archive'}"
+                                       ToolTip.Tip="{Binding ActiveAccount.Email}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="Accounts" Classes="meta" />
+                            <TextBlock Classes="heading" Text="{Binding TotalCount}" />
+                            <TextBlock Classes="meta"><Run Text="{Binding HealthyCount}"/><Run Text=" valid" /></TextBlock>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="4">
+                            <TextBlock Classes="meta"><Run Text="{Binding ActivePrimaryLabel}"/><Run Text=" usage" /></TextBlock>
+                            <TextBlock Classes="heading" Text="{Binding ActivePrimaryPercentText}" />
+                            <TextBlock Classes="meta" Text="{Binding ActivePrimaryRemainingText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Spacing="4">
+                            <TextBlock Text="Reset credits" Classes="meta" />
+                            <TextBlock Classes="heading" Text="{Binding TotalResetCreditsText}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource LineBrush}" />
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="Account archive" Classes="heading" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Width="215" MinHeight="30" PlaceholderText="Search accounts"
+                                 AutomationProperties.Name="Search accounts" Text="{Binding SearchQuery}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,-8,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Button Content="All" Classes="quiet" Classes.selected="{Binding IsFilterAll}" Command="{Binding SetFilterCommand}" CommandParameter="all" />
+                            <Button Content="Active" Classes="quiet" Classes.selected="{Binding IsFilterActive}" Command="{Binding SetFilterCommand}" CommandParameter="active" />
+                            <Button Content="Valid" Classes="quiet" Classes.selected="{Binding IsFilterHealthy}" Command="{Binding SetFilterCommand}" CommandParameter="healthy" />
+                            <Button Classes="quiet" Classes.selected="{Binding IsFilterAlerts}" Command="{Binding SetFilterCommand}" CommandParameter="alerts">
+                                <TextBlock><Run Text="Alerts (" /><Run Text="{Binding AlertCount}" /><Run Text=")" /></TextBlock>
+                            </Button>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Sort" Classes="meta" VerticalAlignment="Center" Margin="0,0,4,0" />
+                            <Button Content="Default" Classes="quiet" Classes.selected="{Binding IsSortDefault}" Command="{Binding SetSortCommand}" CommandParameter="default" />
+                            <Button Content="Quota" Classes="quiet" Classes.selected="{Binding IsSortRemaining}" Command="{Binding SetSortCommand}" CommandParameter="remaining" />
+                            <Button Content="Name" Classes="quiet" Classes.selected="{Binding IsSortName}" Command="{Binding SetSortCommand}" CommandParameter="name" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel IsVisible="{Binding IsFilterEmpty}" HorizontalAlignment="Center" Spacing="10" Margin="0,26">
+                        <TextBlock Text="No matching accounts" />
+                        <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding FilteredAccounts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:AccountViewModel">
+                                <Border Classes="panel" Margin="0,0,0,10">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <StackPanel Spacing="3">
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right" Text="Active" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"
+                                                               IsVisible="{Binding IsActive}" Margin="10,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding DisplayName}" Classes="meta" IsVisible="{Binding HasDisplayName}" />
+                                                <DockPanel HorizontalAlignment="Left" IsVisible="{Binding HasEmail}">
+                                                    <Button DockPanel.Dock="Right" Content="Copy" Classes="quiet" FontSize="11" MinHeight="20" Padding="6,0"
+                                                            ToolTip.Tip="Copy email address" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CopyEmailCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                    <TextBlock Text="{Binding Email}" Classes="meta" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Top">
+                                                <TextBlock Text="{Binding PlanDisplay}" Classes="meta" IsVisible="{Binding HasPlan}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding StatusDisplay}" Classes="meta" Classes.warning="{Binding IsTokenWarning}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding ExpiryText}" Classes="meta" IsVisible="{Binding HasExpiry}" VerticalAlignment="Center" />
+                                                <Button Content="Switch" IsVisible="{Binding !IsActive}" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SwitchCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="Loading quota…" Classes="meta" IsVisible="{Binding IsLoading}" />
+                                        <ItemsControl ItemsSource="{Binding Windows}" IsVisible="{Binding HasWindows}">
+                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" ColumnSpacing="18" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="vm:WindowViewModel">
-                                                    <StackPanel Spacing="2" Margin="0,0,0,4">
-                                                        <Grid ColumnDefinitions="48,*,52">
-                                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11"
-                                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                                                       VerticalAlignment="Center" />
-                                                            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100"
-                                                                         Value="{Binding PercentValue}"
-                                                                         Height="10" VerticalAlignment="Center"
-                                                                         Foreground="{Binding BarColor}" />
-                                                            <TextBlock Grid.Column="2" Text="{Binding PercentText}"
-                                                                       FontSize="12"
-                                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                    <StackPanel Spacing="5" Margin="0,5,0,0">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <TextBlock><Run Text="{Binding Label}" /><Run Text=" usage" /></TextBlock>
+                                                            <TextBlock Grid.Column="1" Text="{Binding PercentText}" FontWeight="SemiBold" />
                                                         </Grid>
-                                                        <TextBlock Text="{Binding RemainingText}"
-                                                                   IsVisible="{Binding HasRemaining}"
-                                                                   FontSize="11" Margin="48,0,0,0"
-                                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                                                        <TextBlock Text="{Binding ResetText}"
-                                                                   IsVisible="{Binding HasReset}"
-                                                                   FontSize="11" Margin="48,0,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   Foreground="{Binding ResetColor}" />
+                                                        <ProgressBar Value="{Binding PercentValue}" Maximum="100" AutomationProperties.Name="{Binding Label}"
+                                                                     Classes.warning="{Binding IsElevated}" Classes.critical="{Binding IsCritical}" />
+                                                        <TextBlock Classes="meta" Text="{Binding RemainingText}" IsVisible="{Binding HasRemaining}" />
+                                                        <TextBlock Classes="meta" Text="{Binding ResetText}" Foreground="{Binding ResetColor}" IsVisible="{Binding HasReset}" TextWrapping="Wrap" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-
-                                        <!-- credits and the rate-limit flag share one line;
-                                             a hidden one leaves no gap, so a card with only
-                                             reset credits does not get an empty row -->
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <TextBlock Text="{Binding CreditsText}" FontSize="11"
-                                                       IsVisible="{Binding HasCredits}"
-                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                                            <TextBlock Text="rate limit reached" FontSize="11"
-                                                       IsVisible="{Binding HasLimitReached}"
-                                                       Foreground="#EF4444" />
-                                        </StackPanel>
-
-                                        <!-- no-cap note -->
-                                        <TextBlock Text="{Binding UsageNote}" FontSize="11"
-                                                   IsVisible="{Binding HasUsageNote}"
-                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-
-                                        <!-- error -->
-                                        <TextBlock Text="{Binding Error}" FontSize="11"
-                                                   IsVisible="{Binding HasError}"
-                                                   Foreground="#EF4444" TextWrapping="Wrap" />
+                                        <TextBlock Classes="meta" IsVisible="{Binding HasCredits}" Text="{Binding CreditsText}" />
+                                        <TextBlock Classes="meta" IsVisible="{Binding HasApproxMessages}" Text="{Binding ApproxMessagesText}" />
+                                        <ItemsControl ItemsSource="{Binding ModelUsageItems}" IsVisible="{Binding HasModelUsage}">
+                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate><DataTemplate DataType="vm:ModelUsageChip">
+                                                <TextBlock Classes="meta" Margin="0,0,16,0"><Run Text="{Binding Model}" /><Run Text="  " /><Run Text="{Binding PercentText}" /></TextBlock>
+                                            </DataTemplate></ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Classes="meta" Text="{Binding UsageNote}" IsVisible="{Binding HasUsageNote}" TextWrapping="Wrap" />
+                                        <TextBlock Classes="error" Text="Rate limit reached" IsVisible="{Binding HasLimitReached}" />
+                                        <TextBlock Classes="error" Text="{Binding Error}" IsVisible="{Binding HasError}" TextWrapping="Wrap" />
                                     </StackPanel>
-
-                                    <!-- ── right column: status + switch ── -->
-                                    <StackPanel Grid.Column="2" Spacing="10"
-                                                VerticalAlignment="Center" Margin="14,0,0,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="5"
-                                                    HorizontalAlignment="Right">
-                                            <TextBlock Text="&#x25CF;" FontSize="10"
-                                                       Foreground="{Binding StatusColor}"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding Status}" FontSize="12"
-                                                       Foreground="{Binding StatusColor}"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding ExpiryText}" FontSize="11"
-                                                       IsVisible="{Binding HasExpiry}"
-                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <Button Content="Switch"
-                                                Command="{Binding $parent[Window].DataContext.SwitchCommand}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding !IsActive}"
-                                                HorizontalAlignment="Right" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </ScrollViewer>
-
-            <!-- Empty state -->
-            <StackPanel IsVisible="{Binding IsEmpty}"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="10" Margin="24">
-                <TextBlock Text="No accounts archived yet"
-                           FontSize="16" FontWeight="SemiBold"
-                           HorizontalAlignment="Center" />
-                <TextBlock Text="Click Login to run the Codex browser flow, then snapshot it."
-                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                           HorizontalAlignment="Center" TextWrapping="Wrap"
-                           TextAlignment="Center" MaxWidth="360" />
-                <Button Content="Login" Command="{Binding LoginCommand}"
-                        HorizontalAlignment="Center" Margin="0,6,0,0" />
+            <StackPanel IsVisible="{Binding IsEmpty}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                <TextBlock Text="No archived accounts" Classes="heading" HorizontalAlignment="Center" />
+                <TextBlock Classes="meta" Text="Sign in with Codex to add an account to this device." />
+                <Button Classes="primary" Content="Sign in with Codex" Command="{Binding LoginCommand}" HorizontalAlignment="Center" />
             </StackPanel>
+            <Border Classes="panel" IsVisible="{Binding IsHudOpen}" Width="480" Margin="18" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                <StackPanel Spacing="8">
+                    <DockPanel><Button DockPanel.Dock="Right" Content="Close" Classes="quiet" Command="{Binding ToggleHudCommand}" /><TextBlock Text="Local paths" FontSize="17" FontWeight="SemiBold" /></DockPanel>
+                    <TextBlock Text="Loading paths…" Classes="meta" IsVisible="{Binding IsWhereLoading}" />
+                    <TextBlock Text="Live credentials" Classes="meta" />
+                    <DockPanel><Button DockPanel.Dock="Right" Content="Copy" Classes="quiet" Command="{Binding CopyTextCommand}" CommandParameter="{Binding AuthJsonPath}" />
+                        <TextBlock Text="{Binding AuthJsonPath}" TextWrapping="Wrap" VerticalAlignment="Center" /></DockPanel>
+                    <TextBlock Text="Archive directory" Classes="meta" />
+                    <DockPanel><Button DockPanel.Dock="Right" Content="Copy" Classes="quiet" Command="{Binding CopyTextCommand}" CommandParameter="{Binding AccountsDirPath}" />
+                        <TextBlock Text="{Binding AccountsDirPath}" TextWrapping="Wrap" VerticalAlignment="Center" /></DockPanel>
+                    <TextBlock Text="Codex executable" Classes="meta" />
+                    <DockPanel><Button DockPanel.Dock="Right" Content="Copy" Classes="quiet" Command="{Binding CopyTextCommand}" CommandParameter="{Binding CodexBinaryPath}" />
+                        <TextBlock Text="{Binding CodexBinaryPath}" TextWrapping="Wrap" VerticalAlignment="Center" /></DockPanel>
+                </StackPanel>
+            </Border>
         </Panel>
-
-        <!-- ── Status bar ───────────────────────────────────────────── -->
-        <Border Grid.Row="2" Padding="14,8"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                BorderThickness="0,1,0,0">
-            <TextBlock Text="{Binding StatusText}" FontSize="12"
-                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="18,5">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                <TextBlock Classes="meta" Classes.error="{Binding HasStatusError}" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding !HasToast}" ToolTip.Tip="{Binding StatusText}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ToastMessage}" Classes="meta" IsVisible="{Binding HasToast}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Classes="meta" Text="{Binding LastRefreshedText}" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Classes="quiet" Content="Paths" Command="{Binding ToggleHudCommand}" />
+            </Grid>
         </Border>
     </Grid>
 </Window>

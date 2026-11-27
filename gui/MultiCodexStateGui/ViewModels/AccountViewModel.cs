@@ -1,9 +1,10 @@
 using System.Collections.ObjectModel;
-using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MultiCodexStateGui.Models;
 
 namespace MultiCodexStateGui.ViewModels;
+
+public sealed record ModelUsageChip(string Model, string PercentText);
 
 /// <summary>
 /// Per-account display item that merges <see cref="AccountInfo"/> and
@@ -14,22 +15,29 @@ public partial class AccountViewModel : ObservableObject
     // ── Raw identity ────────────────────────────────────────────────
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDisplayName))]
     private string? _name;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasEmail))]
     private string? _email;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDisplayName))]
     private string? _displayName;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPlan))]
+    [NotifyPropertyChangedFor(nameof(PlanDisplay))]
     private string? _plan;
 
     // ── Token status ────────────────────────────────────────────────
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusColor))]
+    [NotifyPropertyChangedFor(nameof(StatusDisplay))]
+    [NotifyPropertyChangedFor(nameof(IsWarningOrExpired))]
+    [NotifyPropertyChangedFor(nameof(IsHealthy))]
+    [NotifyPropertyChangedFor(nameof(IsTokenWarning))]
     private string? _status = "unknown";
 
     [ObservableProperty]
@@ -50,9 +58,15 @@ public partial class AccountViewModel : ObservableObject
     /// </summary>
     public ObservableCollection<WindowViewModel> Windows { get; } = new();
 
+    public ObservableCollection<ModelUsageChip> ModelUsageItems { get; } = new();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasWindows))]
     private int _windowCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasModelUsage))]
+    private int _modelUsageCount;
 
     // ── Plan-level state ────────────────────────────────────────────
 
@@ -63,11 +77,14 @@ public partial class AccountViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasLimitReached))]
+    [NotifyPropertyChangedFor(nameof(IsWarningOrExpired))]
     private bool? _limitReached;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CreditsText))]
     [NotifyPropertyChangedFor(nameof(HasCredits))]
+    [NotifyPropertyChangedFor(nameof(ApproxMessagesText))]
+    [NotifyPropertyChangedFor(nameof(HasApproxMessages))]
     private CreditsInfo? _credits;
 
     [ObservableProperty]
@@ -77,6 +94,7 @@ public partial class AccountViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
+    [NotifyPropertyChangedFor(nameof(IsWarningOrExpired))]
     private string? _error;
 
     [ObservableProperty]
@@ -85,25 +103,26 @@ public partial class AccountViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasUsage;
 
-    // ── Cached brushes (avoid allocating on every property access) ──
+    public string StatusDisplay => Status ?? "unknown";
 
-    private static readonly IBrush BrushGreen = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-    private static readonly IBrush BrushYellow = new SolidColorBrush(Color.FromRgb(0xEA, 0xB3, 0x08));
-    private static readonly IBrush BrushRed = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-    private static readonly IBrush BrushGray = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF));
+    public bool IsHealthy => string.Equals(Status, "valid", StringComparison.OrdinalIgnoreCase);
 
-    // ── Derived display properties ─────────────────────────────────
+    public bool IsWarningOrExpired => HasError || HasLimitReached || IsTokenWarning;
 
-    public IBrush StatusColor => Status switch
-    {
-        "valid" => BrushGreen,
-        "expiring" => BrushYellow,
-        "expired" => BrushRed,
-        "invalid" => BrushRed,
-        _ => BrushGray,
-    };
+    public bool IsTokenWarning =>
+        string.Equals(Status, "expiring", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Status, "expired", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Status, "invalid", StringComparison.OrdinalIgnoreCase);
+
+    public bool HasEmail => !string.IsNullOrWhiteSpace(Email);
+
+    public bool HasDisplayName =>
+        !string.IsNullOrWhiteSpace(DisplayName) &&
+        !string.Equals(DisplayName.Trim(), Name?.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public bool HasPlan => !string.IsNullOrWhiteSpace(Plan);
+
+    public string PlanDisplay => string.IsNullOrWhiteSpace(Plan) ? string.Empty : Plan.Trim().ToUpperInvariant();
 
     public bool HasExpiry => ExpiresAt != null;
 
@@ -132,6 +151,8 @@ public partial class AccountViewModel : ObservableObject
 
     public bool HasWindows => WindowCount > 0;
 
+    public bool HasModelUsage => ModelUsageCount > 0;
+
     public bool HasLimitReached => LimitReached == true;
 
     public bool HasError => !string.IsNullOrWhiteSpace(Error);
@@ -155,10 +176,32 @@ public partial class AccountViewModel : ObservableObject
 
     public bool HasCredits => CreditsText.Length > 0;
 
+    public string ApproxMessagesText =>
+        Credits?.ApproxLocalMessages != null
+            ? $"~{Credits.ApproxLocalMessages.Value:0} local msgs"
+            : string.Empty;
+
+    public bool HasApproxMessages => Credits?.ApproxLocalMessages != null;
+
     public string UsageNote =>
-        NoCapReported ? "plan reports no usage for this window (bar shown at 0%)" : string.Empty;
+        NoCapReported ? "No usage cap reported" : string.Empty;
 
     public bool HasUsageNote => NoCapReported;
+
+    /// <summary>
+    /// Lowest remaining percentage across reported windows, used when sorting by remaining capacity.
+    /// </summary>
+    public double BestRemainingPercent
+    {
+        get
+        {
+            var values = Windows
+                .Where(w => w.RemainingPercent.HasValue)
+                .Select(w => w.RemainingPercent!.Value)
+                .ToList();
+            return values.Count > 0 ? values.Min() : -1;
+        }
+    }
 
     // ── Update from CLI JSON models ─────────────────────────────────
 
@@ -185,6 +228,8 @@ public partial class AccountViewModel : ObservableObject
             HasUsage = false;
             Windows.Clear();
             WindowCount = 0;
+            ModelUsageItems.Clear();
+            ModelUsageCount = 0;
             return;
         }
 
@@ -200,5 +245,15 @@ public partial class AccountViewModel : ObservableObject
         foreach (var w in info.Windows ?? new List<UsageWindowInfo>())
             Windows.Add(new WindowViewModel(w, info.NoCapReported));
         WindowCount = Windows.Count;
+
+        ModelUsageItems.Clear();
+        if (info.ModelUsage != null)
+        {
+            foreach (var (model, pct) in info.ModelUsage)
+            {
+                ModelUsageItems.Add(new ModelUsageChip(model, $"{pct:0.#}%"));
+            }
+        }
+        ModelUsageCount = ModelUsageItems.Count;
     }
 }

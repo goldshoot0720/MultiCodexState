@@ -10,117 +10,58 @@ import {
   planTypeOf,
   sameAccount,
   humanExpiry,
+  tokenStatus,
   updateAccountTokens,
 } from './accounts.js';
-import { fetchUsage, bar, formatResetTime, formatCountdown, daysUntil, parseInstant } from './usage.js';
+import { fetchUsage, formatResetTime, formatCountdown, daysUntil, parseInstant } from './usage.js';
 import { login, logout, switchTo, findCodexBinary } from './commands.js';
 import { accountsDir, authJsonPath } from './paths.js';
-import { ROOT, REPO, BRANCH, checkForUpdate, cachedUpdateNotice, syncToRemote, shortSha } from './version.js';
+import { ROOT, REPO, BRANCH, checkForUpdate, cachedUpdateNotice, syncToRemote, shortSha, appVersion } from './version.js';
+import {
+  accent,
+  warning,
+  failure,
+  displayWidth,
+  padVisible,
+  truncateVisible,
+  tag,
+  planBadge,
+  activeBadge,
+  statusChip,
+  paintPercent,
+  paintBar,
+  frameWidth,
+  renderCard,
+  renderTable,
+  renderCommandHeader,
+  sectionRule,
+  withProgress,
+  suggestCommand,
+} from './ui.js';
 
 const CMD = 'MultiCodexState';
-
-const STATUS_STYLE = {
-  valid: (s) => chalk.green(s),
-  expiring: (s) => chalk.yellow(s),
-  expired: (s) => chalk.red(s),
-  unknown: (s) => chalk.gray(s),
-  invalid: (s) => chalk.red(s),
-};
-
-function statusChip(state) {
-  const paint = STATUS_STYLE[state] || chalk.gray;
-  return paint(`● ${state}`);
-}
-
-/**
- * Terminal display width of a string.
- *
- * Counts ANSI escapes as zero (chalk wraps text in them) and CJK/wide
- * glyphs as two cells, which `.length` does not. Without this, a name like
- * "鋒兄" misaligns every column to its right.
- */
-function displayWidth(text) {
-  const stripped = text.replace(/\u001b\[[0-9;]*m/g, '');
-  let width = 0;
-  for (const ch of stripped) {
-    const cp = ch.codePointAt(0);
-    const wide =
-      (cp >= 0x1100 && cp <= 0x115f) || // Hangul Jamo
-      (cp >= 0x2e80 && cp <= 0xa4cf) || // CJK radicals … Yi
-      (cp >= 0xac00 && cp <= 0xd7a3) || // Hangul syllables
-      (cp >= 0xf900 && cp <= 0xfaff) || // CJK compatibility ideographs
-      (cp >= 0xfe30 && cp <= 0xfe6f) || // CJK compatibility forms
-      (cp >= 0xff00 && cp <= 0xff60) || // fullwidth forms
-      (cp >= 0xffe0 && cp <= 0xffe6) ||
-      (cp >= 0x20000 && cp <= 0x3fffd); // CJK ext. B+
-    width += wide ? 2 : 1;
-  }
-  return width;
-}
-
-/** Pad a (possibly colourised) string to a terminal display width. */
-function padVisible(text, width) {
-  return text + ' '.repeat(Math.max(0, width - displayWidth(text)));
-}
-
-/** Truncate to a display width, never splitting an ANSI escape sequence. */
-function truncateVisible(text, width) {
-  if (displayWidth(text) <= width) return text;
-  let out = '';
-  let used = 0;
-  for (const ch of text.replace(/\u001b\[[0-9;]*m/g, '')) {
-    const w = displayWidth(ch);
-    if (used + w > width) break;
-    out += ch;
-    used += w;
-  }
-  return out;
-}
+const KNOWN_COMMANDS = ['login', 'add', 'logout', 'switch', 'use', 'list', 'ls', 'usage', 'update', 'upgrade', 'where', 'help'];
 
 /**
  * The "account" column. The email is the field that actually distinguishes
- * two archives, so it leads; the plan type is appended when it fits.
+ * two archives, so it leads; the plan badge is appended cleanly.
  */
-function accountLabel(a, width = 34) {
+function accountLabel(a, width = 30) {
   if (!a.email) {
     const fallback = a.displayName && a.displayName !== a.name ? a.displayName : '(no email)';
     return padVisible(chalk.gray(truncateVisible(fallback, width)), width);
   }
 
-  const plan = a.plan ? a.plan : null;
-  const withPlan = plan ? `${a.email}  ${plan}` : a.email;
+  const badge = a.plan ? planBadge(a.plan) : '';
+  if (!badge) {
+    return padVisible(chalk.white(truncateVisible(a.email, width)), width);
+  }
 
-  const text =
-    plan && displayWidth(withPlan) <= width
-      ? `${chalk.white(a.email)}  ${chalk.gray(plan)}`
-      : chalk.white(truncateVisible(a.email, width));
-
-  return padVisible(text, width);
-}
-
-/** Colour a usage percentage by how close it is to the cap. */
-function paintPercent(pct) {
-  if (pct == null) return chalk.gray('—');
-  const text = `${pct.toFixed(1)}%`;
-  if (pct >= 90) return chalk.red(text);
-  if (pct >= 70) return chalk.yellow(text);
-  return chalk.green(text);
-}
-
-function paintBar(pct) {
-  if (pct == null) return chalk.gray('░'.repeat(20));
-  const p = Number(pct) || 0;
-  const glyphs = bar(p, 20);
-  if (p >= 90) return chalk.red(glyphs);
-  if (p >= 70) return chalk.yellow(glyphs);
-  return chalk.green(glyphs);
-}
-
-function rule(label) {
-  const width = 62;
-  if (!label) return chalk.gray('─'.repeat(width));
-  const head = ` ${label} `;
-  return chalk.gray(head + '─'.repeat(Math.max(0, width - head.length - 1)));
+  const badgeW = displayWidth(badge);
+  const emailMax = Math.max(8, width - badgeW - 2);
+  const emailText = truncateVisible(a.email, emailMax);
+  const composed = `${chalk.white(emailText)}  ${badge}`;
+  return padVisible(composed, width);
 }
 
 /**
@@ -141,9 +82,17 @@ function resetLine(value, { label = 'Resets' } = {}) {
   const days = daysUntil(value);
 
   const head = chalk.gray(`${label}:`);
-  const paint = days != null && days <= 0 ? chalk.red : days != null && days <= 1 ? chalk.yellow : chalk.white;
+  const paint =
+    days != null && days <= 0
+      ? failure
+      : days != null && days <= 1
+        ? warning
+        : chalk.white;
   const absolute = paint(when);
-  const rel = countdown && countdown !== 'now' ? chalk.gray(` (in ${countdown})`) : chalk.red(' (imminent)');
+  const rel =
+    countdown && countdown !== 'now'
+      ? chalk.gray(` (in ${countdown})`)
+      : failure.bold(' (imminent)');
   return `${head} ${absolute}${rel}`;
 }
 
@@ -157,8 +106,6 @@ function creditsText(u) {
   return bits.length ? bits.join(' · ') : null;
 }
 
-/* ------------------------------------------------------------------ */
-
 /**
  * Emit a JSON document on stdout and nothing else.
  *
@@ -169,6 +116,153 @@ function creditsText(u) {
  */
 function writeJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Usage cards & fleet summary                                         */
+/* ------------------------------------------------------------------ */
+
+function renderUsageCard(a, usageResult, { active = false, width = frameWidth(), showTokenStatus = false } = {}) {
+  const limitHit = Boolean(usageResult?.limitReached);
+
+  const marker = active ? accent.bold('▶') : ' ';
+  const nameText = active ? accent.bold(a.name) : chalk.white.bold(a.name);
+  const plan = usageResult?.planType || a.plan;
+
+  const badges = [
+    active ? activeBadge() : '',
+    planBadge(plan),
+    limitHit ? tag('LIMIT REACHED') : '',
+  ].filter(Boolean);
+
+  const title = badges.length ? `${marker} ${nameText}  ${badges.join(' ')}` : `${marker} ${nameText}`;
+  const identityLabel = a.email || (a.displayName && a.displayName !== a.name ? a.displayName : '');
+  const titleRight = identityLabel ? chalk.white(identityLabel) : '';
+
+  const lines = [];
+  if (showTokenStatus) {
+    const exp = a.expiresAt ? chalk.gray(` (${humanExpiry(a.expiresAt)})`) : '';
+    lines.push(`${chalk.gray('token')}     ${statusChip(a.status)}${exp}`);
+  }
+
+  if (!a.auth) {
+    lines.push(failure.bold('✖ no credential'));
+    return renderCard({ title, titleRight, lines, width });
+  }
+
+  if (!usageResult?.ok) {
+    lines.push(failure.bold(`✖ ${usageResult?.error || 'unknown error'}`));
+    return renderCard({ title, titleRight, lines, width });
+  }
+
+  const windows = usageResult.windows
+    .slice()
+    .sort((x, y) => (x.windowSeconds || Infinity) - (y.windowSeconds || Infinity));
+
+  for (const w of windows) {
+    const pct = w.usedPercent ?? (usageResult.noCapReported ? 0 : null);
+    const tag = padVisible(accent.bold(`[${w.label}]`), 10);
+    const pctText = padVisible(paintPercent(pct), 6, 'right');
+    const rem = w.remainingPercent != null ? chalk.gray(`  · ${w.remainingPercent.toFixed(1)}% remaining`) : '';
+    lines.push(`${tag}${paintBar(pct, 22)}  ${pctText}${rem}`);
+    const reset = resetLine(w.resetAt);
+    if (reset) lines.push(`${' '.repeat(10)}${reset}`);
+  }
+
+  if (!windows.length && usageResult.noCapReported) {
+    const tag = padVisible(chalk.gray('[window]'), 10);
+    lines.push(`${tag}${paintBar(0, 22)}  ${padVisible(paintPercent(0), 6, 'right')}${chalk.gray('  · no cap reported')}`);
+  } else if (!windows.length) {
+    lines.push(chalk.gray('no rate-limit windows reported for this plan'));
+  }
+
+  const credits = creditsText(usageResult);
+  if (credits) {
+    lines.push(`${chalk.white(credits)}`);
+  }
+  if (usageResult.limitReached) {
+    lines.push(failure.bold('✖ rate limit reached'));
+  }
+
+  const modelEntries = Object.entries(usageResult.modelUsage || {});
+  if (modelEntries.length) {
+    lines.push('---');
+    for (const [model, pct] of modelEntries) {
+      const mLabel = padVisible(chalk.gray(truncateVisible(String(model), 15)), 16);
+      lines.push(`${mLabel}${paintBar(pct, 16)}  ${padVisible(paintPercent(pct), 6, 'right')}`);
+    }
+  }
+
+  return renderCard({ title, titleRight, lines, width });
+}
+
+function renderHeadroomSummary(results, width = frameWidth()) {
+  const candidates = results
+    .filter((r) => r.usage?.ok && !r.usage.limitReached && r.usage.windows.length > 0)
+    .map((r) => {
+      const maxUsed = Math.max(...r.usage.windows.map((w) => Number(w.usedPercent ?? 0)));
+      const shortest = r.usage.windows
+        .slice()
+        .sort((x, y) => (x.windowSeconds || Infinity) - (y.windowSeconds || Infinity))[0];
+      return {
+        name: r.account.name,
+        active: r.active,
+        maxUsed,
+        primaryUsed: Number(shortest?.usedPercent ?? maxUsed),
+      };
+    });
+
+  if (candidates.length < 2) return null;
+
+  candidates.sort((a, b) => {
+    if (a.maxUsed !== b.maxUsed) return a.maxUsed - b.maxUsed;
+    if (a.primaryUsed !== b.primaryUsed) return a.primaryUsed - b.primaryUsed;
+    return a.active === b.active ? 0 : a.active ? -1 : 1;
+  });
+
+  const best = candidates[0];
+  const msg = best.active
+    ? `${chalk.gray('Active account')} ${accent.bold(best.name)} ${chalk.gray(`has optimal headroom (${best.maxUsed.toFixed(1)}% max used)`)}`
+    : `${chalk.gray('Most available quota:')} ${chalk.white.bold(best.name)} ${chalk.gray(`(${best.maxUsed.toFixed(1)}% max used ·`)} ${accent(`${CMD} switch ${best.name}`)}${chalk.gray(')')}`;
+
+  return renderCard({
+    lines: [msg],
+    width,
+  });
+}
+
+async function fetchAccountUsageWithProgress(account) {
+  if (!account.auth) return { ok: false, error: 'no credential' };
+  try {
+    return await withProgress(`Fetching live quota for ${account.name}…`, () =>
+      fetchUsage(account.auth, {
+        onTokenRefreshed: (tokens) => updateAccountTokens(account.name, tokens),
+      })
+    );
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Commands                                                            */
+/* ------------------------------------------------------------------ */
+
+function vaultStatsLine(accounts, liveAuth) {
+  const counts = { valid: 0, expiring: 0, expired: 0, invalid: 0, unknown: 0 };
+  for (const a of accounts) {
+    counts[a.status] = (counts[a.status] || 0) + 1;
+  }
+  const bits = [];
+  if (counts.valid) bits.push(accent(`${counts.valid} valid`));
+  if (counts.expiring) bits.push(warning(`${counts.expiring} expiring`));
+  const bad = counts.expired + counts.invalid;
+  if (bad) bits.push(failure(`${bad} expired or invalid`));
+  if (counts.unknown) bits.push(chalk.gray(`${counts.unknown} unknown`));
+
+  const health = bits.join(chalk.gray(' · ')) || chalk.gray('empty');
+  const liveState = liveAuth ? chalk.gray(`live: ${authJsonPath()}`) : chalk.gray('live: signed out');
+  return `${health}   ${chalk.gray('│')}   ${liveState}`;
 }
 
 async function cmdList(argv) {
@@ -195,82 +289,95 @@ async function cmdList(argv) {
     return;
   }
 
+  const width = frameWidth();
+
   if (!accounts.length) {
     console.log();
-    console.log(chalk.yellow('  No accounts archived yet.'));
-    console.log(chalk.gray(`  Archive directory: ${accountsDir()}`));
-    console.log(chalk.gray('  Run: ') + chalk.cyan(`${CMD} login <name>`));
+    console.log(
+      renderCard({
+        title: accent.bold('Accounts'),
+        titleRight: tag('0 accounts'),
+        lines: [
+          warning.bold('No accounts archived yet.'),
+          chalk.gray('Archive directory: ') + chalk.white(accountsDir()),
+          chalk.gray('Run ') + accent.bold(`${CMD} login <name>`) + chalk.gray(' to sign in and snapshot an account.'),
+        ],
+        width,
+      })
+    );
     console.log();
     return;
   }
 
+  const activeAcc = liveAuth ? accounts.find((a) => a.auth && sameAccount(liveAuth, a.auth)) : null;
+  const activePill = activeAcc
+    ? tag(`Active: ${activeAcc.name}`)
+    : liveAuth
+      ? tag('Unarchived session')
+      : tag('Signed out');
+  const countPill = tag(`${accounts.length} ACCOUNT${accounts.length === 1 ? '' : 'S'}`);
+
   console.log();
-  console.log(chalk.bold.cyan('  Codex accounts') + chalk.gray(`  (${accounts.length})`));
-  console.log(rule());
   console.log(
-    '  ' +
-      chalk.gray('#  ') +
-      padVisible(chalk.bold('name'), 16) +
-      padVisible(chalk.bold('account'), 34) +
-      chalk.bold('token')
+    renderCommandHeader({
+      title: 'Accounts',
+      badges: [countPill, activePill],
+      subtitle: vaultStatsLine(accounts, liveAuth),
+      width,
+    })
   );
-  console.log(rule());
 
-  for (const [i, a] of accounts.entries()) {
-    const active = liveAuth && a.auth && sameAccount(liveAuth, a.auth);
-    const marker = active ? chalk.green('▶') : chalk.gray(' ');
-    const name = padVisible(active ? chalk.green.bold(a.name) : chalk.white(a.name), 16);
-    const label = accountLabel(a);
-    const expiry = a.expiresAt ? chalk.gray(humanExpiry(a.expiresAt)) : '';
-    console.log(`  ${marker} ${chalk.gray(String(i + 1).padStart(2))} ${name}${label}${statusChip(a.status)} ${expiry}`);
+  const rows = accounts.map((a, i) => {
+    const active = Boolean(liveAuth && a.auth && sameAccount(liveAuth, a.auth));
+    const marker = active ? accent.bold('▶') : ' ';
+    const indexCol = `${marker} ${chalk.gray(String(i + 1).padStart(2))}`;
+    const nameCol = active ? accent.bold(a.name) : chalk.white.bold(a.name);
+    const accountCol = accountLabel(a, 30);
+    let expiryText = a.expiresAt ? humanExpiry(a.expiresAt) : '';
+    if (a.status === 'expired') expiryText = expiryText.replace(/^expired\s+/i, '');
+    const tokenCol = `${statusChip(a.status)}${expiryText ? chalk.gray(` ${expiryText}`) : ''}`;
+    return [indexCol, nameCol, accountCol, tokenCol];
+  });
+
+  console.log(
+    renderTable({
+      columns: [
+        { label: '#', width: 4 },
+        { label: 'NAME', width: 14 },
+        { label: 'ACCOUNT', width: 30 },
+        { label: 'TOKEN', width: 18 },
+      ],
+      rows,
+      width,
+    })
+  );
+
+  console.log(`  ${chalk.gray('vault')}  ${chalk.white(accountsDir())}`);
+  if (!live) {
+    console.log(
+      `  ${chalk.gray('Run')} ${accent(`${CMD} list --usage`)} ${chalk.gray('(-u) for live quota and reset times')}`
+    );
   }
-
-  console.log(rule());
-  console.log(chalk.gray(`  live: ${authJsonPath()}`));
   console.log();
 
   if (live) await printUsageTable(accounts, liveAuth);
 }
 
 async function printUsageTable(accounts, liveAuth) {
-  console.log(rule('live usage'));
-  const gutter = Math.max(16, ...accounts.map((a) => a.name.length + 2));
-  // Two extra cells for the ▶ marker, so the bars and reset lines still line
-  // up under the names instead of shifting when the marker appears.
-  const indent = ' '.repeat(4 + gutter);
+  const width = frameWidth();
+  console.log(sectionRule('Quota usage', width));
+  console.log();
+
+  const results = [];
   for (const a of accounts) {
-    // Same marker as the table above: the live account is the one whose quota
-    // you are actually burning, and the two halves of the output must agree.
     const active = Boolean(liveAuth && a.auth && sameAccount(liveAuth, a.auth));
-    const marker = active ? chalk.green('▶') : ' ';
-    if (!a.auth) {
-      console.log(`  ${marker} ${chalk.gray(a.name.padEnd(gutter))}${chalk.red('no credential')}`);
-      continue;
-    }
-    console.log(`  ${marker} ${chalk.bold.white(a.name.padEnd(gutter))}${chalk.gray(a.email || '')}`);
-    try {
-      const u = await fetchUsage(a.auth, {
-        onTokenRefreshed: (tokens) => updateAccountTokens(a.name, tokens),
-      });
-      if (!u.ok) {
-        console.log(`${indent}${chalk.red(`✖ ${u.error}`)}`);
-        continue;
-      }
-      const windows = u.windows.slice().sort((a, b) => (a.windowSeconds || Infinity) - (b.windowSeconds || Infinity));
-      for (const w of windows) {
-        const pct = w.usedPercent;
-        console.log(`${indent}${paintBar(pct)} ${padVisible(paintPercent(pct), 6)} ${chalk.gray(`[${w.label}]`)}`);
-        const reset = resetLine(w.resetAt);
-        if (reset) console.log(`${indent}${' '.repeat(21)}${reset}`);
-      }
-      if (u.noCapReported) console.log(`${indent}${paintBar(0)} ${paintPercent(0)}`);
-      const credits = creditsText(u);
-      if (credits) console.log(`${indent}${chalk.gray(credits)}`);
-    } catch (err) {
-      console.log(`${indent}${chalk.red(`✖ ${err.message}`)}`);
-    }
+    const u = await fetchAccountUsageWithProgress(a);
+    results.push({ account: a, active, usage: u });
+    console.log(renderUsageCard(a, u, { active, width }));
   }
-  console.log(rule());
+
+  const summary = renderHeadroomSummary(results, width);
+  if (summary) console.log(summary);
   console.log();
 }
 
@@ -346,78 +453,84 @@ async function cmdUsage(argv) {
     return;
   }
 
+  const width = frameWidth();
+
   if (!accounts.length) {
     console.log();
-    console.log(chalk.yellow('  Nothing to show. Archive an account first with ') + chalk.cyan(`${CMD} login <name>`));
+    console.log(
+      renderCard({
+        title: accent.bold('Quota usage'),
+        lines: [
+          warning('Nothing to show yet.'),
+          chalk.gray('Archive an account first with ') + accent.bold(`${CMD} login <name>`),
+        ],
+        width,
+      })
+    );
     console.log();
     return;
   }
 
   console.log();
-  console.log(chalk.bold.cyan('  Usage & quota'));
-  console.log(rule());
+  console.log(
+    renderCommandHeader({
+      title: 'Quota usage',
+      badges: [tag(`${accounts.length} TARGET${accounts.length === 1 ? '' : 'S'}`)],
+      subtitle: chalk.gray('Reported usage by account'),
+      width,
+    })
+  );
 
+  const results = [];
   for (const a of accounts) {
-    // Mark the live account, exactly like `list` and `list --usage` do: the
-    // quota below belongs to whichever archive is currently copied into
-    // ~/.codex/auth.json, and on a team plan the shared account_id cannot tell
-    // them apart — sameAccount() compares the email.
     const active = Boolean(liveAuth && a.auth && sameAccount(liveAuth, a.auth));
-    const marker = active ? chalk.green('▶') : ' ';
-    if (!a.auth) {
-      console.log(`  ${marker} ${chalk.white(a.name)} ${chalk.red('— no credential')}`);
-      continue;
-    }
-    console.log(`  ${marker} ${chalk.bold.white(a.name)} ${chalk.gray(a.email || '')}`);
-    try {
-      const u = await fetchUsage(a.auth, {
-        onTokenRefreshed: (tokens) => updateAccountTokens(a.name, tokens),
-      });
-      if (!u.ok) {
-        console.log(`    ${chalk.red('✖ ' + u.error)}`);
-        console.log();
-        continue;
-      }
-      if (u.planType) console.log(`    ${chalk.gray('plan')} ${chalk.white(u.planType)}`);
-      for (const w of u.windows) {
-        const pct = w.usedPercent ?? (u.noCapReported ? 0 : null);
-        console.log(`    ${chalk.gray(w.label.padEnd(8))}${paintBar(pct)} ${paintPercent(pct)}`);
-        if (w.remainingPercent != null) {
-          console.log(`            ${chalk.gray(`${w.remainingPercent.toFixed(1)}% remaining`)}`);
-        }
-        const reset = resetLine(w.resetAt);
-        if (reset) console.log(`            ${reset}`);
-      }
-      if (!u.windows.length) {
-        console.log(`    ${chalk.gray('no rate-limit windows reported for this plan')}`);
-      }
-      const credits = creditsText(u);
-      if (credits) console.log(`    ${chalk.gray(credits)}`);
-      if (u.limitReached) console.log(`    ${chalk.red('rate limit reached')}`);
-      for (const [model, pct] of Object.entries(u.modelUsage || {})) {
-        console.log(`    ${chalk.gray(String(model).padEnd(14))} ${paintPercent(pct)}`);
-      }
-    } catch (err) {
-      console.log(`    ${chalk.red('✖ ' + err.message)}`);
-    }
-    console.log();
+    const u = await fetchAccountUsageWithProgress(a);
+    results.push({ account: a, active, usage: u });
+    console.log(renderUsageCard(a, u, { active, width, showTokenStatus: true }));
   }
-  console.log(rule());
+
+  const summary = renderHeadroomSummary(results, width);
+  if (summary) console.log(summary);
   console.log();
 }
 
 async function cmdLogin(argv) {
   const name = argv.find((a) => !a.startsWith('-'));
+  const width = frameWidth();
+
   console.log();
-  console.log(chalk.cyan('  Opening Codex CLI login…'));
-  console.log(chalk.gray(`  binary: ${findCodexBinary()}`));
+  console.log(
+    renderCard({
+      title: accent.bold('Sign in'),
+      titleRight: tag(name ? `AS ${name}` : 'AUTO NAME'),
+      lines: [
+        chalk.white('Launching official Codex CLI browser OAuth flow…'),
+        chalk.gray('binary  ') + chalk.gray(findCodexBinary()),
+      ],
+      width,
+    })
+  );
   console.log();
 
   const res = await login(name);
+  const st = tokenStatus(res.auth);
+  const plan = planTypeOf(res.auth);
+  const email = emailOf(res.auth);
+
   console.log();
-  console.log(chalk.green('  ✔ Saved account ') + chalk.bold.white(res.name));
-  console.log(chalk.gray(`    ${displayName(res.auth)} <${emailOf(res.auth) || 'no email'}>`));
-  console.log(chalk.gray(`    → ${res.file}`));
+  console.log(
+    renderCard({
+      title: accent.bold('✔ ACCOUNT ARCHIVED & ACTIVE'),
+      titleRight: [activeBadge(), planBadge(plan)].filter(Boolean).join(' '),
+      lines: [
+        `${chalk.gray('account  ')}${accent.bold(res.name)}  ${chalk.gray(`(${displayName(res.auth)})`)}`,
+        `${chalk.gray('email    ')}${chalk.white(email || 'no email')}`,
+        `${chalk.gray('token    ')}${statusChip(st.state)}${st.expiresAt ? chalk.gray(` (${humanExpiry(st.expiresAt)})`) : ''}`,
+        `${chalk.gray('saved →  ')}${accent(res.file)}`,
+      ],
+      width,
+    })
+  );
   console.log();
 }
 
@@ -425,26 +538,47 @@ function cmdLogout(argv) {
   const force = argv.includes('--force') || argv.includes('-f');
   const name = argv.find((a) => !a.startsWith('-'));
   const res = logout({ name, force });
+  const width = frameWidth();
 
   console.log();
   if (!res.removed) {
-    console.log(chalk.yellow('  No live auth.json — already signed out.'));
-    if (res.removedLock) console.log(chalk.gray('    removed a stale auth.json.lock'));
-  } else {
-    console.log(chalk.green('  ✔ Signed out') + chalk.gray(`  (removed ${authJsonPath()})`));
-    if (res.removedLock) console.log(chalk.gray(`    removed ${authJsonPath()}.lock`));
-    if (res.backedUp) {
-      console.log(
-        chalk.gray('    archived to ') +
-          chalk.white(res.backedUp) +
-          (res.email ? chalk.gray(`  <${res.email}>`) : '')
-      );
-    } else if (res.kept) {
-      console.log(chalk.gray(`    ${res.name}_auth.json already existed — left as-is (use -f to overwrite)`));
-    } else {
-      console.log(chalk.yellow('    no email in the live session — nothing to archive under'));
-    }
+    const lines = [warning.bold('○ No live auth.json — already signed out.')];
+    if (res.removedLock) lines.push(chalk.gray('cleaned up a stale auth.json.lock'));
+    console.log(
+      renderCard({
+        title: accent.bold('Sign out'),
+        lines,
+        width,
+      })
+    );
+    console.log();
+    return;
   }
+
+  const lines = [
+    `${chalk.gray('removed  ')}${chalk.white(authJsonPath())}`,
+  ];
+  if (res.removedLock) lines.push(`${chalk.gray('cleaned  ')}${chalk.gray(`${authJsonPath()}.lock`)}`);
+  if (res.backedUp) {
+    lines.push(
+      `${chalk.gray('archived ')}${accent.bold(res.backedUp)}${res.email ? chalk.gray(`  <${res.email}>`) : ''}`
+    );
+  } else if (res.kept) {
+    lines.push(
+      warning(`kept existing ${res.name}_auth.json untouched `) + chalk.gray('(pass -f to overwrite)')
+    );
+  } else {
+    lines.push(warning('no email in live session — signed out without archiving'));
+  }
+
+  console.log(
+    renderCard({
+      title: accent.bold('✔ SIGNED OUT'),
+      titleRight: res.backedUp ? tag('ARCHIVED') : tag('CLEARED'),
+      lines,
+      width,
+    })
+  );
   console.log();
 }
 
@@ -452,10 +586,23 @@ function cmdSwitch(argv) {
   const name = argv.find((a) => !a.startsWith('-'));
   if (!name) throw new Error(`usage: ${CMD} switch <name>`);
   const res = switchTo(name);
+  const width = frameWidth();
+  const plan = planTypeOf(res.auth);
+  const st = tokenStatus(res.auth);
+
   console.log();
-  console.log(chalk.green('  ✔ Active account: ') + chalk.bold.white(res.name));
-  console.log(chalk.gray(`    ${displayName(res.auth)} <${emailOf(res.auth) || 'no email'}>`));
-  console.log(chalk.gray('    Codex picks this up on the next launch (auth.json is read per session).'));
+  console.log(
+    renderCard({
+      title: accent.bold('✔ SWITCHED ACTIVE ACCOUNT'),
+      titleRight: [activeBadge(), planBadge(plan)].filter(Boolean).join(' '),
+      lines: [
+        `${accent.bold('▶')} ${accent.bold(res.name)}  ${chalk.gray(`${displayName(res.auth)} <${emailOf(res.auth) || 'no email'}>`)}`,
+        `${chalk.gray('token    ')}${statusChip(st.state)}${st.expiresAt ? chalk.gray(` (${humanExpiry(st.expiresAt)})`) : ''}`,
+        `${chalk.gray('note     ')}Codex picks this up on the next launch (written 0600)`,
+      ],
+      width,
+    })
+  );
   console.log();
 }
 
@@ -477,71 +624,161 @@ function runUpdate({ quiet = false } = {}) {
 
 async function cmdUpdate(argv) {
   const checkOnly = argv.includes('--check') || argv.includes('-c');
+  const interactive = Boolean(process.stdout.isTTY);
 
-  console.log();
-  console.log(chalk.bold.cyan('  Checking for updates…'));
-  console.log(chalk.gray(`  repo ${REPO} (${BRANCH})  ·  ${ROOT}`));
-  console.log();
+  // When captured by the desktop GUI or a script (!isTTY), emit crisp,
+  // status-bar-friendly text without multi-line decorative borders.
+  if (!interactive) {
+    const status = await checkForUpdate();
+    if (!status.ok) {
+      console.log(`Could not check for updates: ${status.reason}${status.current ? ` (${shortSha(status.current)})` : ''}`);
+      return;
+    }
+    if (!status.behind) {
+      console.log(`✔ Already up to date (${shortSha(status.current)})`);
+      return;
+    }
+    if (checkOnly) {
+      console.log(`↑ Update available: ${shortSha(status.current)} → ${shortSha(status.latest)} (run ${CMD} update)`);
+      return;
+    }
+    const pull = await runUpdate({ quiet: true });
+    if (!pull.ok) {
+      if (pull.dirty) {
+        console.log(`✖ Local changes in ${ROOT} would be overwritten.`);
+      } else {
+        console.log(`✖ Update failed${pull.error ? `: ${pull.error}` : ''}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    const link = await new Promise((resolve) => {
+      const child = spawn('npm', ['link', '--no-audit', '--no-fund', '--loglevel=error'], {
+        cwd: ROOT,
+        stdio: 'ignore',
+        shell: process.platform === 'win32',
+      });
+      child.on('error', (err) => resolve({ ok: false, error: err.message }));
+      child.on('close', (code) => resolve({ ok: code === 0, code }));
+    });
+    console.log(
+      link.ok
+        ? `✔ Updated to ${shortSha(pull.sha || status.latest)}`
+        : `✔ Updated to ${shortSha(pull.sha || status.latest)} (npm link failed — global command may be stale)`
+    );
+    return;
+  }
 
-  const status = await checkForUpdate();
+  const width = frameWidth();
+  console.log();
+  console.log(
+    renderCommandHeader({
+      title: 'Update',
+      badges: [tag(`v${appVersion()}`)],
+      subtitle: chalk.gray(`repo ${REPO} (${BRANCH})  ·  ${ROOT}`),
+      width,
+    })
+  );
+
+  const status = await withProgress('Checking GitHub for the latest commit…', () => checkForUpdate());
   if (!status.ok) {
-    console.log(chalk.yellow(`  Could not check for updates: ${status.reason}`));
-    if (status.current) console.log(chalk.gray(`  local ${shortSha(status.current)}`));
+    console.log(
+      renderCard({
+        title: warning.bold('▲ COULD NOT CHECK FOR UPDATES'),
+        lines: [
+          warning(status.reason),
+          ...(status.current ? [chalk.gray('local   ') + chalk.white(shortSha(status.current))] : []),
+        ],
+        width,
+      })
+    );
     console.log();
     return;
   }
 
   if (!status.behind) {
-    console.log(chalk.green('  ✔ Already up to date') + chalk.gray(`  (${shortSha(status.current)})`));
+    console.log(
+      renderCard({
+        title: accent.bold('✔ ALREADY UP TO DATE'),
+        titleRight: tag(shortSha(status.current)),
+        lines: [chalk.gray('Your installation matches the tip of ') + chalk.white(`${REPO}@${BRANCH}`)],
+        width,
+      })
+    );
     console.log();
     return;
   }
 
-  console.log(chalk.yellow('  ↑ Update available'));
-  console.log(chalk.gray('    local  ') + chalk.white(shortSha(status.current)));
-  console.log(chalk.gray('    remote ') + chalk.white(shortSha(status.latest)));
-  console.log();
+  console.log(
+    renderCard({
+      title: warning.bold('↑ UPDATE AVAILABLE'),
+      titleRight: tag(`${shortSha(status.current)} → ${shortSha(status.latest)}`),
+      lines: [
+        `${chalk.gray('local   ')}${chalk.white(shortSha(status.current))}`,
+        `${chalk.gray('remote  ')}${accent.bold(shortSha(status.latest))}`,
+        ...(checkOnly
+          ? [`${chalk.gray('run     ')}${accent.bold(`${CMD} update`)} ${chalk.gray('to install it')}`]
+          : []),
+      ],
+      width,
+    })
+  );
 
   if (checkOnly) {
-    console.log(chalk.gray('  Run ') + chalk.cyan(`${CMD} update`) + chalk.gray(' to install it.'));
     console.log();
     return;
   }
 
-  console.log(chalk.gray('  Syncing to the latest commit…'));
-  console.log();
-  const pull = await runUpdate();
+  const pull = await withProgress('Syncing repository to latest commit…', () => runUpdate({ quiet: true }));
   if (!pull.ok) {
-    if (pull.dirty) {
-      console.log(chalk.red('  ✖ Local changes would be overwritten.'));
-      console.log(chalk.gray(`    Commit or discard them in ${ROOT}, then retry.`));
-    } else {
-      console.log(chalk.red(`  ✖ Update failed${pull.error ? `: ${pull.error}` : ''}`));
-      console.log(chalk.gray(`    The checkout may be offline, or ${ROOT} may not be a git clone.`));
-      console.log(chalk.gray('    Re-running the installer will also refresh it.'));
-    }
+    const lines = pull.dirty
+      ? [
+          failure.bold('✖ Local changes would be overwritten.'),
+          chalk.gray(`Commit or discard them in ${ROOT}, then retry.`),
+        ]
+      : [
+          failure.bold(`✖ Update failed${pull.error ? `: ${pull.error}` : ''}`),
+          chalk.gray(`The checkout may be offline, or ${ROOT} may not be a git clone.`),
+          chalk.gray('Re-running the installer will also refresh it.'),
+        ];
+    console.log(
+      renderCard({
+        title: failure.bold('✖ UPDATE FAILED'),
+        lines,
+        width,
+      })
+    );
     console.log();
     process.exitCode = 1;
     return;
   }
 
-  console.log();
-  console.log(chalk.gray('  Re-linking the global command…'));
-  const link = await new Promise((resolve) => {
-    const child = spawn('npm', ['link', '--no-audit', '--no-fund', '--loglevel=error'], {
-      cwd: ROOT,
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
-    child.on('error', (err) => resolve({ ok: false, error: err.message }));
-    child.on('close', (code) => resolve({ ok: code === 0, code }));
-  });
+  const link = await withProgress('Re-linking global command…', () =>
+    new Promise((resolve) => {
+      const child = spawn('npm', ['link', '--no-audit', '--no-fund', '--loglevel=error'], {
+        cwd: ROOT,
+        stdio: 'ignore',
+        shell: process.platform === 'win32',
+      });
+      child.on('error', (err) => resolve({ ok: false, error: err.message }));
+      child.on('close', (code) => resolve({ ok: code === 0, code }));
+    })
+  );
 
-  console.log();
-  console.log(chalk.green('  ✔ Updated to ') + chalk.bold.white(shortSha(pull.sha || status.latest)));
-  if (!link.ok) {
-    console.log(chalk.yellow('    npm link failed — the source is updated, but the global command may be stale.'));
-  }
+  const lines = [
+    `${chalk.gray('commit   ')}${accent.bold(shortSha(pull.sha || status.latest))}`,
+    link.ok
+      ? `${chalk.gray('command  ')}${accent('✔ global MultiCodexState link refreshed')}`
+      : `${chalk.gray('command  ')}${warning('▲ npm link failed — source updated, global command may be stale')}`,
+  ];
+  console.log(
+    renderCard({
+      title: accent.bold('✔ UPDATED'),
+      titleRight: tag(shortSha(pull.sha || status.latest)),
+      lines,
+      width,
+    })
+  );
   console.log();
 }
 
@@ -553,7 +790,9 @@ async function cmdUpdate(argv) {
 function updateNoticeLine() {
   const notice = globalThis.__csUpdateNotice;
   if (!notice) return null;
-  return '  ' + chalk.gray('↑ update available ') + chalk.cyan(`${CMD} update`) + chalk.gray(`  (${shortSha(notice.latest)})`);
+  const badge = tag('UPDATE AVAILABLE');
+  const sha = tag(shortSha(notice.latest));
+  return `  ${badge}  ${chalk.gray('run')} ${accent.bold(`${CMD} update`)}  ${sha}`;
 }
 
 /** Print the pending notice (if any) once, on the way out. */
@@ -567,50 +806,62 @@ export function flushUpdateNotice() {
   console.log();
 }
 
+/* ------------------------------------------------------------------ */
+/* Help & paths                                                        */
+/* ------------------------------------------------------------------ */
+
 function cmdHelp() {
-  console.log(`
-${chalk.bold.cyan(`  ${CMD}`)} ${chalk.gray('— manage multiple Codex CLI accounts')}
+  const commands = [
+    ['login [name]', 'Sign in and archive an account (alias: add)'],
+    ['logout [name]', 'Archive the live session and sign out (-f to overwrite)'],
+    ['switch <name>', 'Activate a saved account (alias: use)'],
+    ['list', 'List local accounts (alias: ls)'],
+    ['list --usage', 'Include live quota and reset times (-u)'],
+    ['usage [name...]', 'Show quota for all or selected accounts'],
+    ['where', 'Show credential, archive and executable paths'],
+    ['update', 'Install the latest version (alias: upgrade, --check to inspect)'],
+  ];
+  const narrow = process.stdout.columns && process.stdout.columns < 72;
+  console.log(`\n  ${accent.bold(CMD)}  ${chalk.gray('v' + appVersion())}`);
+  console.log(`  Usage: ${CMD} <command>\n`);
+  for (const [command, description] of commands) {
+    const label = chalk.bold(narrow ? command : padVisible(command, 17));
+    console.log(`  ${label}${narrow ? '\n    ' : '  '}${chalk.gray(description)}`);
+  }
+  console.log('\n  Use --json with list, usage, or where for machine-readable output.');
+  console.log(chalk.gray('  Paths: CODEX_HOME, CODEX_STATE_HOME, CODEX_BIN'));
+  console.log(chalk.gray('  Options: MULTICODEXSTATE_THEME, CODEX_NO_UPDATE_CHECK=1\n'));
+}
 
-${chalk.bold('  Usage')}
-    ${chalk.cyan(`${CMD} login [name]`)}       Run ${chalk.gray('codex login')} then snapshot auth.json → ${chalk.gray('accounts/<name>_auth.json')}
-    ${chalk.cyan(`${CMD} logout`)}              Archive auth.json as ${chalk.gray('accounts/<email>_auth.json')}, then delete it
-    ${chalk.cyan(`${CMD} logout <name>`)}       Same, but archive under an explicit name
-    ${chalk.cyan(`${CMD} logout -f`)}           Overwrite an existing archive instead of keeping it
-    ${chalk.cyan(`${CMD} switch <name>`)}       Copy an archived account into the live auth.json
-    ${chalk.cyan(`${CMD} list`)}                List archived accounts
-    ${chalk.cyan(`${CMD} list --usage`)}        List accounts and fetch live quota
-    ${chalk.cyan(`${CMD} usage [name...]`)}     Show plan, rate-limit windows & reset times
-    ${chalk.cyan(`${CMD} update`)}              Check GitHub and pull the latest version
-    ${chalk.cyan(`${CMD} update --check`)}      Only report whether an update is available
-    ${chalk.cyan(`${CMD} where`)}               Print the resolved paths
+function cmdWhere(rest) {
+  const codexBinary = findCodexBinary();
+  if (rest.includes('--json')) {
+    writeJson({
+      authJson: authJsonPath(),
+      accountsDir: accountsDir(),
+      codexBinary,
+    });
+    return;
+  }
 
-${chalk.bold('  Machine-readable output')}
-    ${chalk.cyan(`${CMD} list --json`)}         Account list as JSON (what the desktop GUI reads)
-    ${chalk.cyan(`${CMD} usage --json`)}        Usage as JSON — one row per account, with a windows array
-    ${chalk.cyan(`${CMD} where --json`)}        Resolved paths as JSON
-    With ${chalk.gray('--json')} stdout carries the document and nothing else: no colour, no
-    banners, and the background update notice is suppressed so it can't corrupt it.
+  const width = frameWidth();
+  const liveAuth = readLiveAuth();
+  const count = listAccounts().length;
 
-${chalk.bold('  Usage output')}
-    Each window shows a bar, a percentage, and when it rolls over, e.g.
-    ${chalk.white('Resets: October 18, 21:37, 2026 (in 6d 2h)')} (local time; the
-    countdown turns yellow inside a day, red once due).
-
-${chalk.bold('  How it works')}
-    ${chalk.gray('•')} Codex keeps its session in ${chalk.white('~/.codex/auth.json')} (a flat object with a tokens block).
-    ${chalk.gray('•')} ${chalk.cyan('login')} runs the official CLI flow, then copies that file to
-      ${chalk.white('~/.codex/accounts/<name>_auth.json')} — the archive.
-    ${chalk.gray('•')} ${chalk.cyan('logout')} copies that file to ${chalk.white('accounts/<email>_auth.json')}
-      first, then deletes ${chalk.white('auth.json')}.
-    ${chalk.gray('•')} ${chalk.cyan('switch')} copies an archive back into auth.json.
-    ${chalk.gray('•')} ${chalk.cyan('usage')} calls ${chalk.gray('chatgpt.com/backend-api/wham/usage')} with the
-      stored token, refreshing via ${chalk.gray('auth.openai.com/oauth/token')} when stale.
-
-${chalk.bold('  Environment')}
-    ${chalk.gray('CODEX_HOME')}        override ~/.codex
-    ${chalk.gray('CODEX_BIN')}         path to the codex executable
-    ${chalk.gray('CODEX_NO_UPDATE_CHECK=1')}  disable the background update check
-`);
+  console.log();
+  console.log(
+    renderCard({
+      title: accent.bold('Local paths'),
+      titleRight: tag(`v${appVersion()}`),
+      lines: [
+        `${chalk.gray('codex home   ')}${chalk.white(authJsonPath())}  ${liveAuth ? tag('LIVE') : tag('ABSENT')}`,
+        `${chalk.gray('archives     ')}${chalk.white(accountsDir())}  ${tag(`${count} ARCHIVED`)}`,
+        `${chalk.gray('codex binary ')}${accent(codexBinary)}`,
+      ],
+      width,
+    })
+  );
+  console.log();
 }
 
 export async function runCli(argv) {
@@ -654,30 +905,19 @@ export async function runCli(argv) {
     case 'update':
     case 'upgrade':
       return cmdUpdate(rest);
-    case 'where': {
-      const codexBinary = findCodexBinary();
-      if (rest.includes('--json')) {
-        writeJson({
-          authJson: authJsonPath(),
-          accountsDir: accountsDir(),
-          codexBinary,
-        });
-        return;
-      }
-      console.log();
-      console.log(chalk.gray('  codex home   ') + chalk.white(authJsonPath()));
-      console.log(chalk.gray('  archives     ') + chalk.white(accountsDir()));
-      console.log(chalk.gray('  codex binary ') + chalk.white(codexBinary));
-      console.log();
-      return;
-    }
+    case 'where':
+      return cmdWhere(rest);
     case undefined:
     case 'help':
     case '--help':
     case '-h':
       return cmdHelp();
-    default:
-      console.log(chalk.yellow(`  Unknown command "${cmd}"`));
+    default: {
+      const suggestion = suggestCommand(cmd, KNOWN_COMMANDS);
+      const hint = suggestion ? chalk.gray(' — did you mean ') + accent.bold(suggestion) + chalk.gray('?') : '';
+      console.log();
+      console.log(`  ${tag('UNKNOWN')}  ${warning(`Unknown command "${cmd}"`)}${hint}`);
       return cmdHelp();
+    }
   }
 }
