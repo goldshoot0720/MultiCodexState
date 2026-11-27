@@ -45,7 +45,18 @@ public class CliService
         psi.EnvironmentVariables["CODEX_NO_UPDATE_CHECK"] = "1";
 
         using var proc = new Process { StartInfo = psi };
-        proc.Start();
+        try
+        {
+            proc.Start();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // A Finder-launched app has no shell PATH, so a bare command name
+            // fails with "no such file or directory" long before the CLI can
+            // say anything useful. Name the fix instead of the symptom.
+            throw new Exception(
+                $"MultiCodexState CLI not found ('{cmd}'). Install it, or point MULTICODEXSTATE_CLI at bin/multicodexstate.js. ({ex.Message})");
+        }
 
         var stdoutTask = proc.StandardOutput.ReadToEndAsync();
         var stderrTask = proc.StandardError.ReadToEndAsync();
@@ -181,11 +192,64 @@ public class CliService
     }
 
     /// <summary>
+    /// Locate a *globally installed* CLI by absolute path.
+    ///
+    /// A Finder-launched .app does not inherit a shell PATH — only the bare
+    /// <c>/usr/bin:/bin:/usr/sbin:/sbin</c> that launchd hands out — so the
+    /// command name the installers register resolves to nothing and every call
+    /// dies with "no such file or directory". The installers put the code in
+    /// <c>~/.multicodexstate</c> and the command in <c>~/.local/bin</c> (or the
+    /// npm prefix), so look in those places directly instead of trusting PATH.
+    ///
+    /// Returns the executable to run plus an argument prefix (the quoted script
+    /// path when the executable is node).
+    /// </summary>
+    private static (string fileName, string argsPrefix)? FindInstalledCli()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrEmpty(home)) return null;
+
+        // 1. The default install directory used by all three installers.
+        var entry = Path.Combine(home, ".multicodexstate", "bin", "multicodexstate.js");
+        if (File.Exists(entry)) return (FindNode(), $"\"{entry}\"");
+
+        // 2. The registered command, in every place the installers put it.
+        var name = OperatingSystem.IsWindows() ? "MultiCodexState.cmd" : "MultiCodexState";
+        var dirs = OperatingSystem.IsWindows()
+            ? new[]
+            {
+                Path.Combine(home, ".local", "bin"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm"),
+            }
+            : new[]
+            {
+                Path.Combine(home, ".local", "bin"),
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+            };
+
+        foreach (var dir in dirs)
+        {
+            var candidate = Path.Combine(dir, name);
+            if (File.Exists(candidate)) return (candidate, string.Empty);
+        }
+
+        return null;
+    }
+
+    /// <summary>Compose the final argument string from an optional prefix.</summary>
+    private static string WithPrefix(string argsPrefix, string cliArgs) =>
+        string.IsNullOrEmpty(argsPrefix) ? cliArgs : $"{argsPrefix} {cliArgs}";
+
+    /// <summary>
     /// Resolve the executable + argument string for captured (headless) runs.
     ///
-    /// Order: MULTICODEXSTATE_CLI override → repo-local CLI → global command.
-    /// The repo-local CLI wins because it is guaranteed to match the source
-    /// that added the <c>--json</c> output this app depends on.
+    /// Order: MULTICODEXSTATE_CLI override → repo-local CLI → globally installed
+    /// CLI (absolute path) → the bare command name. The repo-local CLI wins
+    /// because it is guaranteed to match the source that added the
+    /// <c>--json</c> output this app depends on; the absolute install path is
+    /// what makes a copy of the .app work from the Desktop or /Applications,
+    /// where the repo is nowhere above the bundle.
     /// </summary>
     private (string fileName, string arguments) ResolveCommand(string cliArgs)
     {
@@ -196,6 +260,10 @@ public class CliService
         var repo = FindRepoCli();
         if (repo != null)
             return (FindNode(), $"\"{repo}\" {cliArgs}");
+
+        var installed = FindInstalledCli();
+        if (installed != null)
+            return (installed.Value.fileName, WithPrefix(installed.Value.argsPrefix, cliArgs));
 
         if (OperatingSystem.IsWindows())
             return ("cmd.exe", $"/c MultiCodexState {cliArgs}");
@@ -219,6 +287,16 @@ public class CliService
             if (OperatingSystem.IsWindows())
                 return ("cmd.exe", $"/c node \"{repo}\" {cliArgs} & pause");
             return (FindNode(), $"\"{repo}\" {cliArgs}");
+        }
+
+        var installed = FindInstalledCli();
+        if (installed != null)
+        {
+            var (fileName, prefix) = installed.Value;
+            var args = WithPrefix(prefix, cliArgs);
+            // Keep the window open on Windows so OAuth output stays readable.
+            if (OperatingSystem.IsWindows()) return ("cmd.exe", $"/c {fileName} {args} & pause");
+            return (fileName, args);
         }
 
         if (OperatingSystem.IsWindows())
