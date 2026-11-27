@@ -1,6 +1,6 @@
 {
   "name": "multi-codex-state",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Multi-account manager for Codex CLI — login/logout via auth.json copy, plus live usage/quota panel",
   "type": "module",
   "bin": {
