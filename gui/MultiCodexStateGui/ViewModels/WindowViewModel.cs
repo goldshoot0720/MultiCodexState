@@ -1,5 +1,4 @@
 using System.Globalization;
-using Avalonia.Media;
 using MultiCodexStateGui.Models;
 
 namespace MultiCodexStateGui.ViewModels;
@@ -17,10 +16,6 @@ namespace MultiCodexStateGui.ViewModels;
 /// </summary>
 public class WindowViewModel
 {
-    private static readonly IBrush BrushGray = new SolidColorBrush(Color.Parse("#A4AFB7"));
-    private static readonly IBrush BrushYellow = new SolidColorBrush(Color.Parse("#D8B678"));
-    private static readonly IBrush BrushRed = new SolidColorBrush(Color.Parse("#E29A96"));
-
     public WindowViewModel(UsageWindowInfo info, bool noCapReported)
     {
         Label = string.IsNullOrWhiteSpace(info.Label) ? "window" : info.Label!;
@@ -101,16 +96,9 @@ public class WindowViewModel
 
     public bool HasReset => ResetAt != null;
 
-    /// <summary>Mirrors the CLI: yellow inside a day, red once due.</summary>
-    public IBrush ResetColor
-    {
-        get
-        {
-            if (ResetAt == null) return BrushGray;
-            var delta = ResetAt.Value - DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            if (delta <= 0) return BrushRed;
-            if (delta <= 86_400_000) return BrushYellow;
-            return BrushGray;
-        }
-    }
+    private long? MillisecondsUntilReset => ResetAt - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    public bool IsResetSoon => MillisecondsUntilReset is > 0 and <= 86_400_000;
+
+    public bool IsResetDue => MillisecondsUntilReset is <= 0;
 }

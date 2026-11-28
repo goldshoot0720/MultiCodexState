@@ -7,15 +7,15 @@ public static class ThemeManager
 {
     public static string Apply(string themeId)
     {
-        var (name, color) = themeId switch
+        var name = themeId switch
         {
-            "aurora" => ("Teal", "#8DC5BD"),
-            "synth" => ("Rose", "#D5A6AF"),
-            "matrix" => ("Sage", "#AFBF9C"),
-            _ => ("Blue", "#80BDCF")
+            "aurora" => "Teal",
+            "synth" => "Rose",
+            "matrix" => "Sage",
+            _ => "Blue"
         };
-        if (Application.Current is { } app)
-            app.Resources["AccentBrush"] = new SolidColorBrush(Color.Parse(color));
+        if (Application.Current is { } app && app.Resources[$"{name}AccentColor"] is Color color)
+            app.Resources["AccentBrush"] = new SolidColorBrush(color);
         return name;
     }
 }

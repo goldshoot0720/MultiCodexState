@@ -139,7 +139,8 @@
                                                         <ProgressBar Value="{Binding PercentValue}" Maximum="100" AutomationProperties.Name="{Binding Label}"
                                                                      Classes.warning="{Binding IsElevated}" Classes.critical="{Binding IsCritical}" />
                                                         <TextBlock Classes="meta" Text="{Binding RemainingText}" IsVisible="{Binding HasRemaining}" />
-                                                        <TextBlock Classes="meta" Text="{Binding ResetText}" Foreground="{Binding ResetColor}" IsVisible="{Binding HasReset}" TextWrapping="Wrap" />
+                                                        <TextBlock Classes="meta" Classes.warning="{Binding IsResetSoon}" Classes.error="{Binding IsResetDue}"
+                                                                   Text="{Binding ResetText}" IsVisible="{Binding HasReset}" TextWrapping="Wrap" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
