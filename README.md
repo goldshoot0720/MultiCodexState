@@ -426,7 +426,22 @@ there is exactly one source of truth for auth and quota logic.
 
 ### Run it
 
-On Apple Silicon Macs, the release also includes a zipped single-file GUI. Install the CLI using the instructions above, then unzip the executable and open it. The GUI uses the same local archives as the CLI. To build that ZIP on macOS, run `gui/macos/package-single.sh /tmp/multicodexstate-release` from the checkout.
+On Apple Silicon Macs the release ships a zipped `MultiCodexState.app`. Install
+the CLI first, unzip it, and open the app — it reads the same local archives as
+the CLI.
+
+Open the `.app`, not the bare executable next to it. macOS runs a loose Mach-O
+through Terminal, so double-clicking it opens a Terminal window and leaves it
+sitting behind the app you actually wanted; only a bundle is started by
+LaunchServices as a GUI app, with the Dock icon and menu-bar name and no
+Terminal. The bundle is just a wrapper — `Contents/MacOS` holds one
+self-contained binary, no loose `.dll` or `.dylib` files.
+
+To build both from the checkout (needs the .NET SDK 8.0+):
+
+```bash
+gui/macos/package-single.sh /tmp/multicodexstate-release
+```
 
 ```cmd
 gui\run.cmd
